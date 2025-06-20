@@ -1,0 +1,183 @@
+# Factuality Evaluation Thesis - Git Ignore Rules
+
+# ===== PYTHON =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===== VIRTUAL ENVIRONMENTS =====
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# ===== IDE & EDITORS =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===== JUPYTER NOTEBOOKS =====
+.ipynb_checkpoints/
+*.ipynb
+
+# ===== DATA DIRECTORIES =====
+# Large datasets should not be in Git
+data/raw/
+data/processed/
+data/samples/
+*.csv
+*.json
+*.jsonl
+*.parquet
+*.h5
+*.hdf5
+
+# But keep small sample files and structure
+!data/samples/sample_*.json
+!data/README.md
+
+# ===== MODEL CHECKPOINTS =====
+models/checkpoints/
+*.pt
+*.pth
+*.bin
+*.safetensors
+checkpoints/
+
+# ===== RESULTS & OUTPUTS =====
+results/
+logs/
+outputs/
+*.log
+wandb/
+mlruns/
+
+# ===== HUMAN EVALUATION DATA =====
+human_evaluation/tasks/*.json
+human_evaluation/results/*.json
+human_evaluation/results/*.csv
+annotations/
+
+# ===== ENVIRONMENT & SECRETS =====
+.env
+.env.local
+.env.*.local
+secrets.yaml
+api_keys.txt
+
+# ===== TEMPORARY FILES =====
+tmp/
+temp/
+*.tmp
+*.temp
+.cache/
+.pytest_cache/
+
+# ===== DOCUMENTATION BUILD =====
+docs/_build/
+docs/build/
+site/
+
+# ===== SYSTEM FILES =====
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# ===== PACKAGE MANAGERS =====
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ===== TESTING =====
+.coverage
+.tox/
+htmlcov/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# ===== MYPY =====
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ===== LARGE MEDIA FILES =====
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# But keep essential figures
+!figures/architecture.png
+!figures/sample_*.png
+
+# ===== BACKUP FILES =====
+*.bak
+*.backup
+
+# ===== COMPRESSED FILES =====
+*.zip
+*.tgz
+*.tar.gz
+*.rar
+*.7z
+
+# ===== LATEX/THESIS =====
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+*.idx
+*.ind
+*.ilg
+
+# ===== CUSTOM PROJECT IGNORES =====
+# Add your specific files here
+evaluation_cache/
+experiment_results/
+large_models/
+private_data/
+
+
+# misclaneous files used in the project
+ingest.py
+

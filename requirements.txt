@@ -1,0 +1,113 @@
+# Factuality Evaluation for Text Summarization
+# Thesis Project Dependencies - MSc Computer Science
+# Compatible with Python 3.8+
+
+# ===== CORE ML/NLP =====
+torch>=2.0.0
+transformers>=4.30.0
+datasets>=2.14.0
+tokenizers>=0.13.0
+accelerate>=0.20.0
+sentencepiece>=0.1.99
+
+# ===== EVALUATION METRICS =====
+evaluate>=0.4.0
+rouge-score>=0.1.2
+bert-score>=0.3.13
+nltk>=3.8.1
+spacy>=3.6.0
+sacrebleu>=2.3.0
+
+# Question Generation and QA
+sentence-transformers>=2.2.2
+faiss-cpu>=1.7.4
+
+# ===== LLM API INTEGRATIONS =====
+openai>=1.0.0
+anthropic>=0.3.0
+together>=0.2.0
+
+# ===== DATA PROCESSING =====
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.10.0
+scikit-learn>=1.3.0
+openpyxl>=3.1.0
+
+# ===== VISUALIZATION =====
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+
+# ===== VISUALIZATION =====
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+
+# ===== CONFIGURATION & UTILS =====
+pyyaml>=6.0
+python-dotenv>=1.0.0
+omegaconf>=2.3.0
+hydra-core>=1.3.0
+
+# ===== PROGRESS & LOGGING =====
+tqdm>=4.65.0
+rich>=13.0.0
+wandb>=0.15.0
+
+# ===== STATISTICAL ANALYSIS =====
+krippendorff>=0.5.1
+statsmodels>=0.14.0
+pingouin>=0.5.3
+
+# ===== WEB INTERFACE =====
+streamlit>=1.25.0
+st-annotated-text>=4.0.0
+streamlit-aggrid>=0.3.4
+
+# ===== CONFIGURATION & UTILS =====
+pyyaml>=6.0
+python-dotenv>=1.0.0
+omegaconf>=2.3.0
+hydra-core>=1.3.0
+
+# ===== PROGRESS & LOGGING =====
+tqdm>=4.65.0
+rich>=13.0.0
+wandb>=0.15.0
+
+# ===== DEVELOPMENT TOOLS =====
+pytest>=7.4.0
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.0.0
+mypy>=1.5.0
+
+# ===== FILE PROCESSING =====
+jsonlines>=3.1.0
+pyarrow>=12.0.0
+
+# ===== ASYNC & CONCURRENCY =====
+aiohttp>=3.8.0
+asyncio-throttle>=1.0.2
+
+# ===== OPTIONAL: LOCAL LLM SUPPORT =====
+# sentence-transformers>=2.2.0
+# faiss-cpu>=1.7.4
+
+# ===== JUPYTER SUPPORT =====
+jupyter>=1.0.0
+ipywidgets>=8.0.0
+notebook>=6.5.0
+
+
+# ==== FILE FORMATS ====
+xlrd>=2.0.0
+
+# ==== CACHING AND SERIALIZATION ====
+joblib>=1.3.0
+pickle5>=0.0.12; python_version < "3.8"
+
+# ==== TEXT SIMILARITY ====
+textdistance>=4.6.0
+
