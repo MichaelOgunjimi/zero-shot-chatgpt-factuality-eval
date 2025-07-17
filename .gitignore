@@ -47,19 +47,10 @@ Thumbs.db
 
 # ===== DATA DIRECTORIES =====
 # Large datasets should not be in Git
-data/raw/
-data/processed/
-data/samples/
-*.csv
-*.json
-*.jsonl
-*.parquet
-*.h5
-*.hdf5
-
-# But keep small sample files and structure
-!data/samples/sample_*.json
+data/
+# But keep important structure files
 !data/README.md
+!data/.gitkeep
 
 # ===== MODEL CHECKPOINTS =====
 models/checkpoints/
