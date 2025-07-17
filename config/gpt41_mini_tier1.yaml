@@ -1,0 +1,117 @@
+# Optimized Configuration for GPT-4.1 Mini with Tier 1 Rate Limits
+# Based on comprehensive GPT-4.1 Mini research and OpenAI Tier 1 specifications
+
+# ===== GPT-4.1 MINI OPTIMIZATION =====
+openai:
+  # API Configuration
+  api_key: "${OPENAI_API_KEY}"
+
+  # Model Configuration - GPT-4.1 Mini Optimized
+  models:
+    primary: "gpt-4.1-mini"
+    fallbacks: ["o1-mini", "gpt-4o"]
+
+  # API Settings
+  api:
+    base_url: "https://api.openai.com/v1"
+    timeout: 120 # Increased for 1M token context
+    max_retries: 5
+    retry_delay: 2.0
+    backoff_factor: 2.0
+
+  # Rate Limiting - Optimized for Tier 1
+  # Tier 1 Limits: 500 RPM, 200K TPM, 10K RPD
+  rate_limits:
+    requests_per_minute: 450 # 90% of 500 RPM for safety
+    tokens_per_minute: 180000 # 90% of 200K TPM for safety
+    requests_per_day: 9500 # 95% of 10K RPD for safety
+    concurrent_requests: 10 # Higher concurrency for Tier 1
+
+  # Generation Parameters - Optimized for GPT-4.1 Mini
+  generation:
+    temperature: 0.0 # Deterministic for research consistency
+    max_tokens: 2048 # Increased for better responses
+    top_p: 1.0
+    frequency_penalty: 0.0
+    presence_penalty: 0.0
+    stop_sequences: []
+
+  # Cost Management - GPT-4.1 Mini Pricing
+  cost_control:
+    total_budget: 200.0 # Sufficient for full thesis
+    daily_budget: 50.0 # Conservative daily limit
+    warning_threshold: 0.8 # 80% warning
+    hard_limit: true
+    track_usage: true
+    save_usage_logs: true
+    cost_per_1k_tokens:
+      gpt-4.1-mini:
+        input: 0.0004 # $0.40 per 1M tokens
+        output: 0.0016 # $1.60 per 1M tokens
+      o1-mini:
+        input: 0.003 # $3.00 per 1M tokens
+        output: 0.012 # $12.00 per 1M tokens
+      gpt-4o:
+        input: 0.0025 # $2.50 per 1M tokens
+        output: 0.01 # $10.00 per 1M tokens
+
+# ===== BATCH API OPTIMIZATION =====
+batch:
+  enabled: true # Enable batch processing for cost savings
+  max_queue_size: 2000000 # Tier 1: 2M tokens batch limit
+  processing_timeout: 86400 # 24 hours max processing time
+  cost_savings: 0.5 # 50% discount on batch processing
+
+# ===== PROMPT CACHING OPTIMIZATION =====
+caching:
+  enabled: true
+  min_prompt_length: 1024 # Auto-cache prompts > 1024 tokens
+  cache_duration: 600 # 10 minutes cache duration
+  discount_rate: 0.75 # 75% discount on cached tokens
+
+# ===== CONTEXT WINDOW OPTIMIZATION =====
+context:
+  max_tokens: 1000000 # GPT-4.1 Mini: 1M token context
+  chunk_size: 100000 # Process in 100K token chunks
+  overlap: 5000 # 5K token overlap between chunks
+
+# ===== EXPERIMENTAL CONFIGURATION =====
+experiments:
+  # Sample sizes optimized for budget
+  sample_sizes:
+    pilot: 100 # $0.88 cost
+    small: 500 # $4.40 cost
+    medium: 1000 # $8.80 cost
+    large: 1500 # $13.20 cost
+
+  # Batch processing for cost efficiency
+  use_batch_api: true
+  batch_size: 100 # Process 100 requests per batch
+
+  # Caching strategy
+  cache_prompts: true
+  cache_system_prompts: true
+  reuse_context: true
+
+# ===== PERFORMANCE MONITORING =====
+monitoring:
+  track_response_times: true
+  track_token_usage: true
+  track_cost_per_request: true
+  alert_on_rate_limit: true
+  alert_on_budget_threshold: true
+
+# ===== THESIS PROJECT SETTINGS =====
+thesis:
+  max_daily_requests: 9500 # Tier 1 limit
+  max_concurrent_experiments: 3
+  backup_results: true
+  validate_responses: true
+
+# ===== LOGGING CONFIGURATION =====
+logging:
+  level: "INFO"
+  log_api_calls: true
+  log_costs: true
+  log_rate_limits: true
+  save_detailed_metrics: true

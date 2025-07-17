@@ -180,4 +180,8 @@ private_data/
 
 # misclaneous files used in the project
 ingest.py
-
+previous-codebase.txt
+codebase.txt
+treepath.py
+tree.txt
+PROJECT_SETUP_SUMMARY.md
