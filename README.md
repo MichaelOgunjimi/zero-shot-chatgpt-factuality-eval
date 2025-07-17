@@ -1,7 +1,10 @@
 # ChatGPT Factuality Evaluation for Text Summarization
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](<https://www.python.org/downl###> ✅ Implemented Baselines
+
+- **FactCC**: BERT-based factual consistency classifier
+- **BERTScore**: Contextual embedding similarity with RoBERTa-Large
+- **ROUGE**: N-gram overlap metrics (ROUGE-1, ROUGE-2, ROUGE-L)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![University of Manchester](https://img.shields.io/badge/University-Manchester-red.svg)](https://www.manchester.ac.uk/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
@@ -34,11 +37,14 @@ tasks, with comprehensive statistical analysis and human correlation studies.
 factuality-evaluation/
 ├── 📄 README.md                           # Project documentation
 ├── 📄 requirements.txt                    # Dependencies  
-├── 📄 .env.template                       # Environment setup
-├── 🔧 setup.sh                           # Automated setup script
+├── 📄 .env.template                       # Environment setup template
+├── � ingest.py                           # Codebase documentation generator
+├── 📄 cost_comparison.py                  # Cost analysis utility
+├── 📄 LICENSE                             # MIT License
 │
 ├── 📁 config/
-│   └── ⚙️ default.yaml                   # Complete system configuration
+│   ├── ⚙️ default.yaml                   # Main system configuration
+│   └── ⚙️ gpt41_mini_tier1.yaml         # GPT-4.1 Mini optimized config
 │
 ├── 📁 src/                               # Core implementation
 │   ├── 📁 tasks/                         # ✅ Three factuality tasks
@@ -61,7 +67,9 @@ factuality-evaluation/
 │   │   └── 🐍 sota_metrics.py           # FactCC, BERTScore, ROUGE
 │   │
 │   ├── 📁 data/                          # ✅ Data handling
-│   │   └── 🐍 loaders.py                # CNN/DM, XSum, FRANK, SummEval
+│   │   ├── 🐍 downloader.py             # Dataset downloading
+│   │   ├── 🐍 loaders.py                # CNN/DM, XSum dataset loaders
+│   │   └── 🐍 preprocessors.py          # Data preprocessing pipeline
 │   │
 │   └── 📁 utils/                         # ✅ Supporting utilities
 │       ├── 🐍 config.py                 # Configuration management
@@ -69,19 +77,35 @@ factuality-evaluation/
 │       └── 🐍 visualization.py          # Publication-ready plots
 │
 ├── 📁 experiments/                       # Ready-to-run experiments
-│   ├── 🐍 baseline_comparison.py        # ChatGPT vs SOTA metrics
-│   ├── 🐍 prompt_ablation.py            # Zero-shot vs CoT comparison
+│   ├── 🐍 run_chatgpt_evaluation.py    # Main ChatGPT evaluation
+│   ├── 🐍 prompt_comparison.py         # Zero-shot vs CoT comparison
+│   ├── 🐍 sota_comparison.py           # ChatGPT vs SOTA metrics
 │   └── 🐍 run_all_experiments.py       # Complete experimental suite
 │
-├── 📁 results/                           # Experiment outputs
-│   ├── 📁 experiments/                  # Raw results
-│   ├── 📁 figures/                      # Publication figures
-│   └── 📁 tables/                       # Results tables
+├── 📁 scripts/                          # Utility scripts
+│   ├── 🐍 setup_environment.py         # Environment setup
+│   ├── 🐍 setup_data.py                # Data preparation
+│   ├── 🐍 check_environment.py         # Environment validation
+│   ├── 🐍 estimate_costs.py            # Cost estimation
+│   ├── 🐍 quick_test.py                # Quick system validation
+│   ├── 🐍 download_all_datasets.py     # Dataset download utility
+│   └── � index.py                     # Scripts overview
 │
-└── 📁 tests/                            # Comprehensive test suite
-    ├── 🐍 test_tasks.py                 # Task implementation tests
-    ├── 🐍 test_metrics.py               # Baseline metric tests
-    └── 🐍 test_pipeline.py              # End-to-end tests
+├── 📁 prompts/                          # Prompt templates
+│   ├── 📁 consistency_rating/           # Rating prompts
+│   ├── 📁 entailment_inference/         # Binary classification prompts
+│   ├── 📁 summary_ranking/              # Ranking prompts
+│   └── 📁 system_prompts/               # System-level prompts
+│
+├── 📁 results/                          # Experiment outputs
+│   ├── 📁 experiments/                 # Raw results
+│   └── 📁 logs/                        # Experiment logs
+│
+└── 📁 tests/                           # Comprehensive test suite
+    ├── 🐍 test_tasks.py                # Task implementation tests
+    ├── 🐍 test_data_loaders.py         # Data loading tests
+    ├── 🐍 test_openai_client.py        # API client tests
+    └── 🐍 test_evaluation.py           # Evaluation framework tests
 ```
 
 ## 🔬 Implemented Factuality Tasks
@@ -175,8 +199,6 @@ bertscore = create_baseline("bertscore")
 |-------------------|-------------|-------|--------|------------------------|
 | **CNN/DailyMail** | ✅ **Ready** | 287k  | News   | Large-scale evaluation |
 | **XSum**          | ✅ **Ready** | 204k  | News   | Abstractive summaries  |
-| **FRANK**         | ✅ **Ready** | 2.25k | Mixed  | Error analysis         |
-| **SummEval**      | ✅ **Ready** | 1.6k  | Mixed  | Human correlation      |
 
 ### ✅ Data Processing Pipeline
 
@@ -258,7 +280,7 @@ python experiments/prompt_ablation.py \
 ```bash
 # Correlation with human judgments
 python experiments/human_correlation.py \
-  --dataset summeval \
+  --dataset cnn_dailymail \
   --include-baselines \
   --statistical-tests
 ```
