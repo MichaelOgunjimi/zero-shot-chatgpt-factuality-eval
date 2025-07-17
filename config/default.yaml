@@ -288,38 +288,6 @@ datasets:
         annotation_required: true
         rating_scale: [0.0, 1.0]
 
-  # FRANK Dataset (DISABLED - Using only CNN/DailyMail and XSum)
-  frank:
-    enabled: false
-    name: "FRANK"
-    description: "Factuality evaluation benchmark"
-
-    # Data settings
-    splits: ["test"]
-    sample_sizes:
-      development: 50
-      evaluation: 300
-      full: null
-
-    # Processing parameters
-    preprocessing:
-      max_source_length: 1024
-      max_summary_length: 256
-      min_summary_length: 10
-      use_annotations: true
-      error_types:
-        ["semantic_error", "discourse_error", "content_verifiability_error"]
-
-    # Task-specific settings
-    task_data:
-      entailment_inference:
-        use_human_labels: true
-        binary_threshold: 0.5
-
-      consistency_rating:
-        use_human_ratings: true
-        normalize_ratings: true
-
 # ===== SOTA BASELINES CONFIGURATION =====
 baselines:
   # Enable SOTA methods for comparison
