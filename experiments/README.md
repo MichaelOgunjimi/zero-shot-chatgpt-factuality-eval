@@ -42,7 +42,7 @@
 
    ```bash
    # Validate setup (recommended first step)
-   python experiments/quick_experiment_setup.py --complete-validation
+   python scripts/check_environment.py
    ```
 
 ### 30-Second Test Run
@@ -410,8 +410,8 @@ cat .env | grep OPENAI_API_KEY
 # Validate API key
 python -c "import openai; print('API key valid')"
 
-# Test API access
-python experiments/quick_experiment_setup.py --validate-environment
+# Test environment setup
+python scripts/check_environment.py
 ```
 
 #### 2. Memory Issues
@@ -428,7 +428,8 @@ python experiments/run_chatgpt_evaluation.py --sample-size 100
 python experiments/run_all_experiments.py --quick-test
 
 # Monitor memory usage
-python experiments/quick_experiment_setup.py --benchmark-performance
+# Check system performance
+python scripts/estimate_costs.py --benchmark
 ```
 
 #### 3. Dataset Loading Errors
@@ -644,7 +645,7 @@ python scripts/aggregate_results.py --input-dir results/experiments/ --output co
 ### Getting Help
 
 1. **Check Logs**: Always check `logs/` directory for detailed error messages
-2. **Validate Setup**: Run `quick_experiment_setup.py --complete-validation`
+2. **Validate Setup**: Run `python scripts/check_environment.py`
 3. **Test Components**: Use individual experiment scripts to isolate issues
 4. **Monitor Resources**: Check API costs and rate limits
 
@@ -671,7 +672,7 @@ This experimental framework provides a comprehensive system for evaluating ChatG
 
 For thesis work, we recommend:
 
-1. **Start with validation**: `quick_experiment_setup.py --complete-validation`
+1. **Start with validation**: `python scripts/check_environment.py`
 2. **Test with minimal data**: `run_all_experiments.py --quick-test`
 3. **Run full experiments**: `run_all_experiments.py --experiment-name thesis_final`
 4. **Generate final reports**: All outputs will be thesis-ready
