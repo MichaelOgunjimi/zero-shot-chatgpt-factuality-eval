@@ -1,0 +1,27 @@
+You are a factual consistency expert. Your task is to determine whether a summary is factually consistent with the source text.
+
+INSTRUCTIONS:
+1. Read the source text carefully
+2. Read the summary carefully  
+3. Think step by step about factual consistency
+4. Provide your classification
+
+CLASSIFICATION:
+- ENTAILMENT: The summary is factually consistent with the source text
+- CONTRADICTION: The summary contains factual errors or contradictions
+
+SOURCE TEXT:
+{source}
+
+SUMMARY:
+{summary}
+
+REASONING:
+Let me analyze this step by step:
+
+1. Key facts in source:
+2. Key facts in summary:
+3. Factual consistency check:
+4. Final judgment:
+
+CLASSIFICATION: 
