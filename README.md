@@ -1,12 +1,12 @@
 # ChatGPT Factuality Evaluation for Text Summarization
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](<https://www.python.org/downl###> ✅ Implemented Baselines
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/download)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![University of Manchester](https://img.shields.io/badge/University-Manchester-red.svg)](https://www.manchester.ac.uk/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 - **FactCC**: BERT-based factual consistency classifier
 - **BERTScore**: Contextual embedding similarity with RoBERTa-Large
-- **ROUGE**: N-gram overlap metrics (ROUGE-1, ROUGE-2, ROUGE-L)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![University of Manchester](https://img.shields.io/badge/University-Manchester-red.svg)](https://www.manchester.ac.uk/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+- **ROUGE**: N-gram overlap metrics (ROUGE-1, ROUGE-2, ROUGE-L)
 
 **M.Sc. AI Thesis Project - University of Manchester**  
 **Student**: Michael Ogunjimi  
@@ -33,7 +33,7 @@ tasks, with comprehensive statistical analysis and human correlation studies.
 
 ## 🏗️ System Architecture
 
-```
+```text
 factuality-evaluation/
 ├── 📄 README.md                           # Project documentation
 ├── 📄 requirements.txt                    # Dependencies  
@@ -218,11 +218,14 @@ examples = quick_load_dataset('cnn_dailymail', sample_size=1000)
 ### 1. **Environment Setup** (2 minutes)
 
 ```bash
-# Clone and setup automatically
-git clone https://github.com/your-repo/factuality-evaluation.git
-cd factuality-evaluation
-chmod +x setup.sh && ./setup.sh
-source venv/bin/activate
+# Clone and setup
+git clone https://github.com/MichaelOgunjimi/zero-shot-chatgpt-factuality-eval.git
+cd zero-shot-chatgpt-factuality-eval
+
+# Create virtual environment and install dependencies
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
 ### 2. **API Configuration**
@@ -237,7 +240,7 @@ echo "OPENAI_API_KEY=sk-your-key-here" >> .env
 
 ```bash
 # Test all three tasks
-python experiments/baseline_comparison.py --quick-test
+python experiments/run_all_experiments.py --quick-test
 
 # Full experimental suite  
 python experiments/run_all_experiments.py --config config/default.yaml
@@ -259,7 +262,7 @@ print(f'Accuracy: {task.evaluate_predictions(results)}')"
 
 ```bash
 # Compare ChatGPT against all SOTA methods
-python experiments/baseline_comparison.py \
+python experiments/sota_comparison.py \
   --datasets cnn_dailymail xsum \
   --tasks all \
   --sample-size 500
@@ -269,20 +272,10 @@ python experiments/baseline_comparison.py \
 
 ```bash
 # Zero-shot vs Chain-of-Thought comparison
-python experiments/prompt_ablation.py \
+python experiments/prompt_comparison.py \
   --task entailment_inference \
   --dataset cnn_dailymail \
   --sample-size 200
-```
-
-#### **Human Correlation Analysis**
-
-```bash
-# Correlation with human judgments
-python experiments/human_correlation.py \
-  --dataset cnn_dailymail \
-  --include-baselines \
-  --statistical-tests
 ```
 
 ### ✅ Statistical Analysis
@@ -397,7 +390,6 @@ tracker = CostTracker(daily_budget=25.0, total_budget=150.0)
 - **Publication-quality figures** with matplotlib/seaborn
 - **Statistical significance testing** with multiple comparison corrections
 - **Reproducible experiments** with configuration versioning
-- **Human evaluation framework** with inter-annotator agreement
 - **Error analysis tools** for detailed failure mode investigation
 - **LaTeX table generation** for thesis integration
 
@@ -413,7 +405,7 @@ tracker = CostTracker(daily_budget=25.0, total_budget=150.0)
 
 **Course**: M.Sc. AI (COMP66060/66090) - University of Manchester  
 **Supervisor**: Prof. Sophia Ananiadou  
-**Target**: 60+ page thesis with comprehensive experimental validation  
+**Target**: 8000 words thesis with comprehensive experimental validation  
 **Timeline**: June-August 2025
 
 ### ✅ Thesis Chapter Support
@@ -440,7 +432,7 @@ tracker = CostTracker(daily_budget=25.0, total_budget=150.0)
   school={University of Manchester},
   year={2025},
   type={MSc AI Thesis},
-  note={Complete implementation available at: https://github.com/your-repo/factuality-evaluation}
+  note={Complete implementation available at: https://github.com/MichaelOgunjimi/zero-shot-chatgpt-factuality-eval}
 }
 ```
 

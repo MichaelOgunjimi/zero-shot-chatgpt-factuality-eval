@@ -23,12 +23,14 @@
 
 1. **Environment Setup**
 
-   ```bash
-   # Clone repository and set up environment
-   cd chatgpt-factuality-eval
-   chmod +x setup.sh && ./setup.sh
-   source venv/bin/activate
-   ```
+  ```bash
+  # Clone repository and set up environment
+  cd zero-shot-chatgpt-factuality-eval
+
+  python -m venv venv
+  source venv/bin/activate  # On Windows: venv\Scripts\activate
+  pip install -r requirements.txt
+  ```
 
 2. **API Configuration**
 
@@ -260,7 +262,7 @@ results/experiments/master_experiment_YYYYMMDD_HHMMSS/
 |---------------|---------------|----------|---------|
 | Quick Test | $2-5 | 5-10 min | ~50 total examples |
 | Development | $10-20 | 20-30 min | ~200 total examples |
-| Thesis Final | $50-100 | 1-2 hours | ~1000+ total examples |
+| Thesis Final | $50-100 | 1-2 hours | ~10000+ total examples |
 
 #### Cost Optimization Tips
 
@@ -589,7 +591,6 @@ python experiments/run_chatgpt_evaluation.py --task entailment_inference
    zip -r thesis_package.zip \
      experiments/ \
      config/ \
-     docs/ \
      results/ \
      requirements.txt \
      README.md
@@ -652,7 +653,7 @@ python scripts/aggregate_results.py --input-dir results/experiments/ --output co
 ### Additional Resources
 
 - **OpenAI API Documentation**: <https://docs.openai.com/>
-- **Project Repository**: [Your GitHub repository]
+- **Project Repository**: <https://github.com/MichaelOgunjimi/zero-shot-chatgpt-factuality-eval>
 - **Configuration Reference**: `config/default.yaml` with inline comments
 - **Error Logs**: `results/experiments/*/logs/` for detailed troubleshooting
 
