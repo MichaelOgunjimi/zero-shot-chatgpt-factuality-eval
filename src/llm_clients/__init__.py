@@ -14,6 +14,8 @@ Institution: University of Manchester
 Course: MSc AI
 """
 
+from typing import Optional
+
 from .openai_client import (
     # Main client class
     OpenAIClient,
@@ -56,6 +58,7 @@ __course__ = "MSc AI"
 # Supported models for factuality evaluation
 SUPPORTED_MODELS = [
     "gpt-4.1-mini",
+    "gpt-4o-mini", 
     "o1-mini",
     "gpt-4o",
 ]
@@ -63,6 +66,7 @@ SUPPORTED_MODELS = [
 # Model pricing (tokens per dollar - approximate)
 MODEL_PRICING = {
     "gpt-4.1-mini": {"input_cost_per_1k": 0.0004, "output_cost_per_1k": 0.0016},
+    "gpt-4o-mini": {"input_cost_per_1k": 0.00015, "output_cost_per_1k": 0.0006},
     "o1-mini": {"input_cost_per_1k": 0.003, "output_cost_per_1k": 0.012},
     "gpt-4o": {"input_cost_per_1k": 0.0025, "output_cost_per_1k": 0.01},
 }
@@ -127,7 +131,7 @@ def estimate_experiment_cost(
     num_examples: int,
     avg_prompt_tokens: int,
     avg_response_tokens: int,
-    model_name: str = "gpt-4.1-mini",
+    model_name: Optional[str] = None,
 ) -> dict:
     """
     Estimate cost for an experiment.
@@ -136,11 +140,14 @@ def estimate_experiment_cost(
         num_examples: Number of examples to process
         avg_prompt_tokens: Average tokens per prompt
         avg_response_tokens: Average tokens per response
-        model_name: Model to use for estimation
+        model_name: Model to use for estimation (if None, uses first available model)
 
     Returns:
         Dictionary with cost estimation
     """
+    if model_name is None:
+        model_name = SUPPORTED_MODELS[0]  # Use first available model
+    
     if model_name not in MODEL_PRICING:
         raise ValueError(f"Unsupported model: {model_name}")
 
@@ -167,7 +174,7 @@ def estimate_experiment_cost(
 
 # Quick setup function for common use cases
 def setup_chatgpt_client(
-    model_name: str = "gpt-4.1-mini",
+    model_name: Optional[str] = None,
     max_requests_per_minute: int = 10,
     daily_budget: float = 50.0,
     config: dict = None,
@@ -176,7 +183,7 @@ def setup_chatgpt_client(
     Quick setup function for ChatGPT client with reasonable defaults.
 
     Args:
-        model_name: Model to use
+        model_name: Model to use (if None, uses first available model)
         max_requests_per_minute: Rate limit for API calls
         daily_budget: Daily spending limit
         config: Optional configuration dictionary
@@ -184,6 +191,9 @@ def setup_chatgpt_client(
     Returns:
         Configured OpenAI client
     """
+    if model_name is None:
+        model_name = SUPPORTED_MODELS[0]  # Use first available model
+    
     if config is None:
         config = {
             "openai": {

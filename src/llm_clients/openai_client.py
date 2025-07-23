@@ -261,8 +261,10 @@ class CostCalculator:
             Cost in USD
         """
         if model not in cls.PRICING:
-            logger.warning(f"Unknown model for pricing: {model}. Using gpt-4.1-mini pricing.")
-            model = "gpt-4.1-mini"
+            # Use the first available model pricing as fallback
+            fallback_model = next(iter(cls.PRICING.keys()))
+            logger.warning(f"Unknown model for pricing: {model}. Using {fallback_model} pricing.")
+            model = fallback_model
 
         pricing = cls.PRICING[model]
 
@@ -302,16 +304,19 @@ class OpenAIClient:
         # Setup OpenAI API
         self._setup_openai_api()
 
-        # Model configuration
+        # Model configuration - Remove hardcoded defaults
         openai_config = self.config.get("openai", {})
         models_config = openai_config.get("models", {})
-        self.primary_model = models_config.get("primary", "gpt-4.1-mini")
-        self.fallback_models = models_config.get("fallbacks", ["o1-mini", "gpt-4o"])
+        self.primary_model = models_config.get("primary")
+        self.fallback_models = models_config.get("fallbacks", [])
+        
+        if not self.primary_model:
+            raise ValueError("No primary model specified in configuration. Use get_config(model='model-name') to load model-specific config.")
 
-        # Generation parameters (optimized for GPT-4.1 Mini)
+        # Generation parameters (model-agnostic)
         generation_config = openai_config.get("generation", {})
         self.default_temperature = generation_config.get("temperature", 0.0)
-        self.default_max_tokens = generation_config.get("max_tokens", 2048)  # Increased for GPT-4.1 Mini
+        self.default_max_tokens = generation_config.get("max_tokens", 2048)
         self.default_top_p = generation_config.get("top_p", 1.0)
 
         # API settings
@@ -319,13 +324,16 @@ class OpenAIClient:
         self.timeout = api_config.get("timeout", 30)
         self.max_retries = api_config.get("max_retries", 3)
 
-        # Initialize rate limiter (optimized for Tier 1)
+        # Initialize rate limiter - Remove hardcoded defaults
         rate_limits = openai_config.get("rate_limits", {})
         self.rate_limiter = RateLimiter(
-            requests_per_minute=rate_limits.get("requests_per_minute", 450),  # Tier 1: 500 RPM
-            tokens_per_minute=rate_limits.get("tokens_per_minute", 180000),   # Tier 1: 200K TPM
-            requests_per_day=rate_limits.get("requests_per_day", 9500),       # Tier 1: 10K RPD
+            requests_per_minute=rate_limits.get("requests_per_minute"),
+            tokens_per_minute=rate_limits.get("tokens_per_minute"), 
+            requests_per_day=rate_limits.get("requests_per_day"),
         )
+        
+        if not rate_limits:
+            self.logger.warning("No rate limits specified in configuration. Use get_config(model='model-name') to load model-specific config.")
 
         # Initialize cost tracker
         cost_config = openai_config.get("cost_control", {})
@@ -887,19 +895,23 @@ def validate_openai_config(config: Dict[str, Any]) -> bool:
 
 
 def estimate_token_cost(
-    text: str, model: str = "gpt-4.1-mini", estimated_response_tokens: int = 50
+    text: str, model: Optional[str] = None, estimated_response_tokens: int = 50
 ) -> float:
     """
     Estimate cost for text processing.
 
     Args:
         text: Input text
-        model: Model name
+        model: Model name (if None, uses first available model for estimation)
         estimated_response_tokens: Estimated response length
 
     Returns:
         Estimated cost in USD
     """
+    if model is None:
+        # Use first available model for estimation
+        model = next(iter(CostCalculator.PRICING.keys()))
+    
     try:
         encoder = tiktoken.encoding_for_model(model)
         prompt_tokens = len(encoder.encode(text))

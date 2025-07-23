@@ -74,10 +74,14 @@ class ChatGPTEvaluationExperiment:
     providing comprehensive performance analysis and thesis-ready results.
     """
     
-    def __init__(self, config_path: str, experiment_name: str = None, log_dir: str = None, output_dir: str = None):
+    def __init__(self, config_path: str = None, experiment_name: str = None, log_dir: str = None, output_dir: str = None, model: str = "gpt-4o-mini", tier: str = "tier2"):
         """Initialize the experiment runner."""
-        # Load configuration
-        self.config = load_config(config_path)
+        # Load configuration with model-specific settings
+        self.config = get_config(model=model, tier=tier)
+        
+        # Store model info
+        self.model = model
+        self.tier = tier
         
         # Set up experiment tracking
         self.experiment_name = experiment_name or f"chatgpt_eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"

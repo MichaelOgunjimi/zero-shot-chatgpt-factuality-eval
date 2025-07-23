@@ -81,10 +81,18 @@ class MasterExperimentRunner:
     reports suitable for thesis inclusion.
     """
     
-    def __init__(self, config_path: str, experiment_name: str = None):
+    def __init__(self, model: str = "gpt-4o-mini", tier: str = "tier2", experiment_name: str = None, config_path: str = None):
         """Initialize the master experiment runner."""
-        # Load configuration
-        self.config = load_config(config_path)
+        # Check for deprecated config_path argument
+        if config_path:
+            print("⚠️  Warning: config_path is deprecated. Using model/tier configuration instead.")
+        
+        # Load configuration with model-specific settings
+        self.config = get_config(model=model, tier=tier)
+        
+        # Store model info for sub-experiments
+        self.model = model
+        self.tier = tier
         
         # Set up experiment tracking
         self.experiment_name = experiment_name or f"master_experiment_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -250,12 +258,13 @@ class MasterExperimentRunner:
             
             experiment_name = f"chatgpt_evaluation_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
-            # Create experiment with specific output directory
+            # Create experiment with specific output directory and model config
             chatgpt_experiment = ChatGPTEvaluationExperiment(
-                config_path="config/default.yaml",
                 experiment_name=experiment_name,
                 log_dir=str(self.chatgpt_output_dir / "logs"),
-                output_dir=str(self.chatgpt_output_dir)
+                output_dir=str(self.chatgpt_output_dir),
+                model=self.model,
+                tier=self.tier
             )
             
             # Create the output directory structure for the nested experiment
@@ -309,12 +318,13 @@ class MasterExperimentRunner:
             
             experiment_name = f"prompt_comparison_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
-            # Create experiment with specific output directory
+            # Create experiment with specific output directory and model config
             prompt_experiment = PromptComparisonExperiment(
-                config_path="config/default.yaml",
                 experiment_name=experiment_name,
                 log_dir=str(self.prompt_output_dir / "logs"),
-                output_dir=str(self.prompt_output_dir)
+                output_dir=str(self.prompt_output_dir),
+                model=self.model,
+                tier=self.tier
             )
             
             # Create the output directory structure for the nested experiment
@@ -371,7 +381,8 @@ class MasterExperimentRunner:
             
             # Create experiment with specific output directory
             sota_experiment = SOTAComparisonExperiment(
-                config_path="config/default.yaml",
+                model=self.model,
+                tier=self.tier,
                 experiment_name=experiment_name,
                 log_dir=str(self.sota_output_dir / "logs"),
                 output_dir=str(self.sota_output_dir)
@@ -1240,13 +1251,35 @@ Sample Size Modes:
         action="store_true",
         help="Run complete experimental suite"
     )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="gpt-4o-mini",
+        choices=["gpt-4.1-mini", "gpt-4o-mini", "o1-mini", "gpt-4o"],
+        help="Model to use for experiments (default: gpt-4o-mini for cost-effectiveness)"
+    )
+    parser.add_argument(
+        "--tier",
+        type=str,
+        default="tier2",
+        choices=["tier1", "tier2", "tier3", "tier4", "tier5"],
+        help="API tier to use (default: tier2)"
+    )
     
     args = parser.parse_args()
     
-    # Initialize master experiment runner
+    # Print model configuration
+    print(f"🤖 Model Configuration:")
+    print(f"   Model: {args.model}")
+    print(f"   Tier: {args.tier}")
+    print()
+    
+    # Initialize master experiment runner with model config
     master_runner = MasterExperimentRunner(
-        config_path=args.config,
-        experiment_name=args.experiment_name
+        model=args.model,
+        tier=args.tier,
+        experiment_name=args.experiment_name,
+        config_path=args.config  # For backward compatibility warning
     )
     
     # Run experimental suite

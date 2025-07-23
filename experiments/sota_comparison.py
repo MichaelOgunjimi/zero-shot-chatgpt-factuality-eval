@@ -88,10 +88,10 @@ class SOTAComparisonExperiment:
     analysis and performance benchmarking.
     """
     
-    def __init__(self, config_path: str, experiment_name: str = None, log_dir: str = None, output_dir: str = None):
+    def __init__(self, model: str, tier: str, experiment_name: str = None, log_dir: str = None, output_dir: str = None):
         """Initialize the SOTA comparison experiment."""
         # Load configuration
-        self.config = load_config(config_path)
+        self.config = get_config(model=model, tier=tier)
         
         # Set up experiment tracking
         self.experiment_name = experiment_name or f"sota_comparison_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -1711,10 +1711,23 @@ def main():
         description="Compare ChatGPT with SOTA baseline methods for factuality evaluation"
     )
     parser.add_argument(
+        "--model",
+        type=str,
+        default="gpt-4.1-mini",
+        choices=["gpt-4.1-mini", "gpt-4o-mini", "o1-mini", "gpt-4o"],
+        help="OpenAI model to use"
+    )
+    parser.add_argument(
+        "--tier",
+        type=str,
+        default="tier2",
+        choices=["tier1", "tier2", "tier3", "tier4", "tier5"],
+        help="OpenAI API tier"
+    )
+    parser.add_argument(
         "--config",
         type=str,
-        default="config/default.yaml",
-        help="Path to configuration file"
+        help="DEPRECATED: Use --model and --tier instead"
     )
     parser.add_argument(
         "--experiment-name",
@@ -1759,6 +1772,11 @@ def main():
     
     args = parser.parse_args()
     
+    # Check for deprecated config argument
+    if args.config:
+        print("⚠️  Warning: --config is deprecated. Please use --model and --tier instead.")
+        print(f"   Using defaults: --model {args.model} --tier {args.tier}")
+    
     # Set parameters
     tasks = [args.task] if args.task else None
     datasets = [args.dataset] if args.dataset else None
@@ -1771,7 +1789,8 @@ def main():
     
     # Initialize and run experiment
     experiment = SOTAComparisonExperiment(
-        config_path=args.config,
+        model=args.model,
+        tier=args.tier,
         experiment_name=args.experiment_name
     )
     
