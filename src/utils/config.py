@@ -27,6 +27,14 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+# Import model configuration manager
+try:
+    from .model_config import ModelConfigManager, merge_model_config
+except ImportError:
+    ModelConfigManager = None
+    merge_model_config = None
+    logger.warning("Model configuration manager not available")
+
 # Import PyTorch with fallback
 try:
     import torch
@@ -173,14 +181,18 @@ class ConfigManager:
     def load_config(
         self,
         config_path: Optional[str] = None,
-        environment: Optional[str] = None
+        environment: Optional[str] = None,
+        model: Optional[str] = None,
+        tier: Optional[str] = None
     ) -> ConfigWrapper:
         """
-        Load configuration from YAML file with environment variable substitution.
+        Load configuration from YAML file with environment variable substitution and model-specific configuration.
 
         Args:
             config_path: Path to configuration file
             environment: Environment name (development, testing, production)
+            model: Model name (e.g., "gpt-4.1-mini", "gpt-4o-mini")
+            tier: API tier (e.g., "tier1", "tier2")
 
         Returns:
             Loaded configuration wrapped for enhanced access
@@ -205,6 +217,16 @@ class ConfigManager:
                 env_overrides = raw_config["environments"][environment]
                 raw_config = self._merge_configs(raw_config, env_overrides)
                 self.logger.info(f"Applied {environment} environment overrides")
+
+            # Apply model-specific configuration if specified
+            if model and ModelConfigManager and merge_model_config:
+                try:
+                    # Use tier2 as default if not specified (since user is on tier 2)
+                    tier = tier or "tier2"
+                    raw_config = merge_model_config(raw_config, model, tier)
+                    self.logger.info(f"Applied {model} configuration for {tier}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to apply model-specific config: {e}")
 
             # Substitute environment variables
             raw_config = self._substitute_env_vars(raw_config)
@@ -412,13 +434,21 @@ def load_config(
     return _config_manager.load_config(config_path, environment)
 
 
-def get_config() -> ConfigWrapper:
+def get_config(model: Optional[str] = None, tier: str = "tier2") -> ConfigWrapper:
     """
     Get current configuration.
+
+    Args:
+        model: Optional model name for model-specific configuration
+        tier: API tier (defaults to "tier2")
 
     Returns:
         Current configuration (loads default if not already loaded)
     """
+    if model:
+        # Load with model-specific configuration
+        return get_config_with_model(model=model, tier=tier)
+    
     if _config_manager.config is None:
         return load_config()
     return _config_manager.config
@@ -585,3 +615,52 @@ def setup_reproducibility(config: Optional[ConfigWrapper] = None) -> Dict[str, A
 
     logger.info("Reproducibility setup completed")
     return settings
+
+
+def get_config_with_model(
+    config_path: Optional[str] = None,
+    model: Optional[str] = None,
+    tier: str = "tier2"
+) -> ConfigWrapper:
+    """
+    Load configuration with model-specific settings.
+    
+    Args:
+        config_path: Path to configuration file
+        model: Model name (e.g., "gpt-4.1-mini", "gpt-4o-mini", "o1-mini", "gpt-4o")
+        tier: API tier (defaults to "tier2" since user is on tier 2)
+        
+    Returns:
+        Configuration with model-specific rate limits and settings
+        
+    Examples:
+        # Load config with gpt-4.1-mini for tier 2
+        config = get_config_with_model(model="gpt-4.1-mini")
+        
+        # Load config with gpt-4o-mini for tier 2
+        config = get_config_with_model(model="gpt-4o-mini")
+        
+        # Load config with o1-mini for tier 2
+        config = get_config_with_model(model="o1-mini")
+    """
+    manager = ConfigManager(config_path)
+    return manager.load_config(model=model, tier=tier)
+
+
+def get_model_rate_limits(model: str, tier: str = "tier2") -> Dict[str, int]:
+    """
+    Get rate limits for a specific model and tier.
+    
+    Args:
+        model: Model name
+        tier: API tier (defaults to "tier2")
+        
+    Returns:
+        Dictionary with rate limit values
+    """
+    if ModelConfigManager:
+        manager = ModelConfigManager()
+        return manager.get_rate_limits(model, tier)
+    else:
+        logger.warning("Model configuration manager not available")
+        return {}

@@ -1,0 +1,38 @@
+# GPT-4.1-mini Configuration for Tier 2
+# Rate limits: 5,000 RPM, 2,000,000 TPM, 20,000,000 Batch queue limit
+
+openai:
+  models:
+    primary: "gpt-4.1-mini"
+    fallbacks: ["gpt-4o-mini", "o1-mini"]
+
+  # Rate Limiting - Tier 2 for gpt-4.1-mini
+  rate_limits:
+    requests_per_minute: 4500 # 90% of 5,000 RPM for safety margin
+    tokens_per_minute: 1800000 # 90% of 2,000,000 TPM for safety margin
+    requests_per_day: 648000 # Conservative daily estimate (4500 RPM * 60 * 24 * 0.1)
+    concurrent_requests: 25 # Higher concurrency for Tier 2
+    batch_queue_limit: 18000000 # 90% of 20,000,000 batch queue limit
+
+  # Generation parameters optimized for gpt-4.1-mini
+  generation:
+    temperature: 0.0
+    max_tokens: 2048
+    top_p: 1.0
+    frequency_penalty: 0.0
+    presence_penalty: 0.0
+    stop_sequences: []
+
+  # Cost management for gpt-4.1-mini
+  cost_control:
+    cost_per_1k_tokens:
+      gpt-4.1-mini:
+        input: 0.0004 # $0.40 per 1M tokens
+        output: 0.0016 # $1.60 per 1M tokens
+
+  # Batch processing for gpt-4.1-mini
+  batch:
+    enabled: true
+    max_queue_size: 18000000 # 90% of batch queue limit
+    processing_timeout: 86400
+    cost_savings: 0.5

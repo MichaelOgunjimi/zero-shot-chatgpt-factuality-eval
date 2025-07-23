@@ -127,10 +127,12 @@ tasks:
 openai:
   # API key and authentication
   api_key: "${OPENAI_API_KEY}" # Set in environment variable
-  # Model settings
+  # Model settings - Use get_config(model='model-name') for model-specific configuration
   models:
-    primary: "gpt-4.1-mini"
-    fallbacks: ["o1-mini", "gpt-4o"]
+    # Example: primary: "gpt-4.1-mini"  # Set via model-specific config
+    # Example: fallbacks: ["gpt-4o-mini", "o1-mini"]  # Set via model-specific config
+    primary: null # Must be set via model-specific configuration
+    fallbacks: []
 
   # API configuration
   api:
@@ -140,12 +142,17 @@ openai:
     retry_delay: 5.0
     backoff_factor: 2.5
 
-  # Rate limiting (optimized for Tier 1: 500 RPM, 200K TPM, 10K RPD)
+  # Rate limiting - Use get_config(model='model-name') for tier-specific limits
   rate_limits:
-    requests_per_minute: 450 # 500 RPM limit, use 450 for safety margin
-    tokens_per_minute: 180000 # 200K TPM limit, use 180K for safety margin
-    requests_per_day: 9500 # 10K RPD limit, use 9500 for safety margin
-    concurrent_requests: 10 # Higher concurrency for Tier 1
+    # Example values for reference (actual values set by model-specific config):
+    # Tier 2 gpt-4.1-mini: 4500 RPM, 1800000 TPM, 648000 RPD
+    # Tier 2 gpt-4o-mini: 1800 RPM, 1800000 TPM, 288000 RPD
+    # Tier 2 o1-mini: 1800 RPM, 1800000 TPM, 288000 RPD
+    # Tier 2 gpt-4o: 4500 RPM, 405000 TPM, 648000 RPD
+    requests_per_minute: null # Must be set via model-specific configuration
+    tokens_per_minute: null # Must be set via model-specific configuration
+    requests_per_day: null # Must be set via model-specific configuration
+    concurrent_requests: 10
 
   # Generation parameters (optimized for GPT-4.1 Mini)
   generation:

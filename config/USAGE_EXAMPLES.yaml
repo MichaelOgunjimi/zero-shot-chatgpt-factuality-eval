@@ -1,0 +1,130 @@
+# Example Configuration Usage for Model-Specific Settings
+# ========================================================
+
+# This file demonstrates how to use the new dynamic model configuration system.
+# The system automatically loads model-specific rate limits based on your tier.
+
+# METHOD 1: Load configuration with specific model in code
+# --------------------------------------------------------
+# from src.utils.config import get_config
+#
+# # For gpt-4.1-mini on tier 2 (your current setup)
+# config = get_config(model="gpt-4.1-mini", tier="tier2")
+#
+# # For gpt-4o-mini on tier 2
+# config = get_config(model="gpt-4o-mini", tier="tier2")
+#
+# # For o1-mini on tier 2
+# config = get_config(model="o1-mini", tier="tier2")
+#
+# # For gpt-4o on tier 2
+# config = get_config(model="gpt-4o", tier="tier2")
+
+# METHOD 2: Use model-specific configuration files
+# ------------------------------------------------
+# The system will automatically load from config/models/{model}_{tier}.yaml
+# Available files:
+# - config/models/gpt-4.1-mini_tier2.yaml  (5000 RPM, 2M TPM, 20M batch)
+# - config/models/gpt-4o-mini_tier2.yaml   (2000 RPM, 2M TPM, 2M batch)
+# - config/models/o1-mini_tier2.yaml       (2000 RPM, 2M TPM, 2M batch)
+# - config/models/gpt-4o_tier2.yaml        (5000 RPM, 450K TPM, 1.35M batch)
+
+# METHOD 3: Environment variable for default model
+# ------------------------------------------------
+# Set FACTUALITY_MODEL environment variable:
+# export FACTUALITY_MODEL="gpt-4.1-mini"
+# export FACTUALITY_TIER="tier2"
+
+# TIER 2 RATE LIMITS BY MODEL:
+# ============================
+#
+# gpt-4.1-mini (recommended for cost-effectiveness):
+#   - 5,000 RPM, 2,000,000 TPM, 20,000,000 Batch queue limit
+#   - Safety margins: 4,500 RPM, 1,800,000 TPM, 18,000,000 batch
+#   - Cost: $0.40/$1.60 per 1M input/output tokens
+#
+# gpt-4o-mini (fastest, cheapest):
+#   - 2,000 RPM, 2,000,000 TPM, 2,000,000 Batch queue limit
+#   - Safety margins: 1,800 RPM, 1,800,000 TPM, 1,800,000 batch
+#   - Cost: $0.15/$0.60 per 1M input/output tokens
+#
+# o1-mini (reasoning model):
+#   - 2,000 RPM, 2,000,000 TPM, 2,000,000 Batch queue limit
+#   - Safety margins: 1,800 RPM, 1,800,000 TPM, 1,800,000 batch
+#   - Cost: $3.00/$12.00 per 1M input/output tokens
+#
+# gpt-4o (most capable):
+#   - 5,000 RPM, 450,000 TPM, 1,350,000 Batch queue limit
+#   - Safety margins: 4,500 RPM, 405,000 TPM, 1,215,000 batch
+#   - Cost: $2.50/$10.00 per 1M input/output tokens
+
+# USAGE EXAMPLES:
+# ===============
+
+# Example 1: Basic usage with gpt-4.1-mini (recommended)
+example_usage_gpt41_mini: |
+  from src.utils.config import get_config
+  from src.llm_clients import OpenAIClient
+
+  # Load configuration for gpt-4.1-mini on tier 2
+  config = get_config(model="gpt-4.1-mini", tier="tier2")
+  client = OpenAIClient(config)
+
+  # Rate limits will be automatically set to:
+  # - 4,500 requests per minute
+  # - 1,800,000 tokens per minute 
+  # - 648,000 requests per day (conservative estimate)
+
+# Example 2: Cost-optimized with gpt-4o-mini
+example_usage_gpt4o_mini: |
+  from src.utils.config import get_config
+  from src.llm_clients import OpenAIClient
+
+  # Load configuration for gpt-4o-mini on tier 2 (cheapest option)
+  config = get_config(model="gpt-4o-mini", tier="tier2")
+  client = OpenAIClient(config)
+
+  # Rate limits will be automatically set to:
+  # - 1,800 requests per minute
+  # - 1,800,000 tokens per minute
+  # - 288,000 requests per day (conservative estimate)
+
+# Example 3: Reasoning-focused with o1-mini
+example_usage_o1_mini: |
+  from src.utils.config import get_config
+  from src.llm_clients import OpenAIClient
+
+  # Load configuration for o1-mini on tier 2 (reasoning model)
+  config = get_config(model="o1-mini", tier="tier2")
+  client = OpenAIClient(config)
+
+  # Rate limits will be automatically set to:
+  # - 1,800 requests per minute
+  # - 1,800,000 tokens per minute
+  # - 288,000 requests per day (conservative estimate)
+
+# Example 4: Maximum capability with gpt-4o
+example_usage_gpt4o: |
+  from src.utils.config import get_config
+  from src.llm_clients import OpenAIClient
+
+  # Load configuration for gpt-4o on tier 2 (most capable)
+  config = get_config(model="gpt-4o", tier="tier2")
+  client = OpenAIClient(config)
+
+  # Rate limits will be automatically set to:
+  # - 4,500 requests per minute
+  # - 405,000 tokens per minute (lower than others due to model)
+  # - 648,000 requests per day (conservative estimate)
+
+# MIGRATION FROM OLD HARDCODED SYSTEM:
+# ====================================
+#
+# OLD (hardcoded):
+#   config = get_config()  # Always used gpt-4.1-mini with tier 1 limits
+#
+# NEW (dynamic):
+#   config = get_config(model="gpt-4.1-mini", tier="tier2")  # Explicit model and tier
+#   config = get_config(model="gpt-4o-mini", tier="tier2")   # Switch models easily
+#   config = get_config(model="o1-mini", tier="tier2")       # Use reasoning model
+#   config = get_config(model="gpt-4o", tier="tier2")        # Use most capable model
