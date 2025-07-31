@@ -29,6 +29,14 @@ Course: MSc AI
 import argparse
 import asyncio
 import json
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Any, Optional
+
+import plotly.graph_objects as go
+import json
 import logging
 import subprocess
 import sys
@@ -90,6 +98,9 @@ class MasterExperimentRunner:
         # Load configuration with model-specific settings
         self.config = get_config(model=model, tier=tier)
         
+        # Configure clean logging first
+        self._configure_logging_levels()
+        
         # Store model info for sub-experiments
         self.model = model
         self.tier = tier
@@ -136,8 +147,47 @@ class MasterExperimentRunner:
             'cost_summary': {},
             'execution_summary': {}
         }
+    
+    def _configure_logging_levels(self):
+        """Configure logging levels for cleaner console output."""
+        import logging
         
-        self.logger.info(f"Initialized master experiment runner: {self.experiment_name}")
+        # Set root logger to WARNING to reduce noise
+        logging.getLogger().setLevel(logging.WARNING)
+        
+        # Set external libraries to WARNING or ERROR to reduce noise
+        external_loggers = [
+            'httpx', 'openai', 'urllib3', 'httpcore', 'httpx._client',
+            'choreographer', 'kaleido', 'plotly', 'PIL', 'matplotlib',
+            'transformers', 'torch', 'tensorflow', 'sklearn', 'pandas',
+            'numpy', 'datasets', 'tokenizers', 'huggingface_hub',
+            'src.utils.config', 'src.utils', 'cost_tracker',
+            'src.data.loaders', 'src.baselines', 'src.visualization',
+            'experiment.', 'asyncio', 'concurrent.futures', 'root'
+        ]
+        
+        for logger_name in external_loggers:
+            logging.getLogger(logger_name).setLevel(logging.ERROR)
+        
+        # Set specific experiment loggers to ERROR to suppress all sub-experiment noise
+        experiment_loggers = [
+            'experiment.chatgpt_evaluation',
+            'experiment.prompt_comparison', 
+            'experiment.sota_comparison',
+            'src.evaluation', 'src.tasks', 'src.llm_clients'
+        ]
+        
+        for logger_name in experiment_loggers:
+            logging.getLogger(logger_name).setLevel(logging.ERROR)
+            
+        # Suppress specific noisy modules completely
+        logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
+        logging.getLogger('PIL.PngImagePlugin').setLevel(logging.ERROR)
+        
+        # Set timestamp-based experiment loggers to ERROR (catch dynamically named loggers)
+        for name in logging.Logger.manager.loggerDict:
+            if any(pattern in name for pattern in ['experiment.', '20250', '20240', '20230']):
+                logging.getLogger(name).setLevel(logging.ERROR)
     
     async def run_complete_experimental_suite(
         self,
@@ -154,36 +204,56 @@ class MasterExperimentRunner:
         Returns:
             Consolidated results from all experiments
         """
-        self.logger.info("Starting complete experimental suite")
+        print(f"\n🚀 Starting Master Experimental Suite")
+        print(f"   📁 Output: {self.output_dir}")
+        print(f"   🧪 Mode: {'Quick Test' if quick_test else 'Full Suite'}")
+        print(f"   🔧 Model: {self.model} ({self.tier})")
         
         start_time = time.time()
         
         try:
             # Phase 1: Pre-experiment validation
+            print(f"\n📋 Phase 1/7: Validating experimental setup...")
             await self._validate_experimental_setup()
+            print(f"   ✅ Setup validation completed")
             
             # Phase 2: Run core ChatGPT evaluation
+            print(f"\n🤖 Phase 2/7: Running ChatGPT evaluation experiment...")
             await self._run_chatgpt_evaluation_experiment(quick_test)
             
             # Phase 3: Run prompt comparison experiment
+            print(f"\n🔄 Phase 3/7: Running prompt comparison experiment...")
             await self._run_prompt_comparison_experiment(quick_test)
             
             # Phase 4: Run SOTA comparison experiment
+            print(f"\n⚔️  Phase 4/7: Running SOTA comparison experiment...")
             await self._run_sota_comparison_experiment(quick_test)
             
             # Phase 5: Consolidate and analyze results
+            print(f"\n📊 Phase 5/7: Consolidating experimental results...")
             await self._consolidate_experimental_results()
+            print(f"   ✅ Results consolidated")
             
             # Phase 6: Generate master visualizations
+            print(f"\n📈 Phase 6/7: Generating master visualizations...")
             await self._generate_master_visualizations()
+            print(f"   ✅ Visualizations generated")
             
             # Phase 7: Generate final thesis-ready report
+            print(f"\n📄 Phase 7/7: Generating final reports...")
             await self._generate_final_report()
+            print(f"   ✅ Final reports generated")
             
             total_time = time.time() - start_time
+            total_cost = self.experiment_results.get('consolidated_analysis', {}).get('cost_analysis', {}).get('total_experimental_cost', 0.0)
+            
             self.experiment_results['execution_summary']['total_execution_time'] = total_time
             
-            self.logger.info(f"Complete experimental suite finished in {total_time:.2f} seconds")
+            print(f"\n🎉 Master experimental suite completed!")
+            print(f"   ⏱️  Total time: {total_time:.1f} seconds")
+            print(f"   💰 Total cost: ${total_cost:.4f}")
+            print(f"   📁 Results: {self.output_dir}")
+            
             return self.experiment_results
             
         except Exception as e:
@@ -192,7 +262,6 @@ class MasterExperimentRunner:
     
     async def _validate_experimental_setup(self):
         """Validate that all components are ready for experiments."""
-        self.logger.info("Validating experimental setup")
         
         validation_results = {
             'config_validation': True,
@@ -211,29 +280,35 @@ class MasterExperimentRunner:
             for config_key in required_configs:
                 if not self.config.get(config_key):
                     validation_results['config_validation'] = False
-                    self.logger.warning(f"Missing configuration: {config_key}")
-            
+                    print(f"   ⚠️  Missing configuration: {config_key}")
+                else:
+                    print(f"   ✅ Configuration validated: {config_key}")
+                    
             # Validate API access - this checks environment variables
             api_validation = validate_api_keys(self.config)
             if not api_validation.get('openai', False):
                 validation_results['api_validation'] = False
-                self.logger.warning("OpenAI API key not available")
+                print("   ⚠️  OpenAI API key not available")
             else:
-                self.logger.info("OpenAI API key validation successful")
-            
+                print("   ✅ OpenAI API key validated")
+                
             # Test data loading
             from src.data import quick_load_dataset
             test_examples = quick_load_dataset('cnn_dailymail', max_examples=2)
             if len(test_examples) < 2:
                 validation_results['data_validation'] = False
-                self.logger.warning("Data loading validation failed")
+                print("   ⚠️  Data loading validation failed")
+            else:
+                print("   ✅ Data loading validated")
             
             # Test baseline creation
             from src.baselines import get_available_baselines
             available_baselines = get_available_baselines()
             if not available_baselines:
                 validation_results['baseline_validation'] = False
-                self.logger.warning("No baselines available")
+                print("   ⚠️  No baselines available")
+            else:
+                print(f"   ✅ Baselines validated ({len(available_baselines)} available)")
             
         except Exception as e:
             self.logger.error(f"Validation failed: {e}")
@@ -245,12 +320,9 @@ class MasterExperimentRunner:
         critical_validations = ['config_validation', 'api_validation', 'data_validation']
         if not all(validation_results.get(key, False) for key in critical_validations):
             raise RuntimeError("Critical validation failures detected. Cannot proceed with experiments.")
-        
-        self.logger.info("Experimental setup validation completed successfully")
     
     async def _run_chatgpt_evaluation_experiment(self, quick_test: bool):
         """Run the main ChatGPT evaluation experiment."""
-        self.logger.info("Running ChatGPT evaluation experiment")
         
         try:
             # Import and run ChatGPT evaluation
@@ -271,8 +343,8 @@ class MasterExperimentRunner:
             self.chatgpt_output_dir.mkdir(parents=True, exist_ok=True)
             
             # Set parameters based on test mode
-            sample_size = 20 if quick_test else 10000  # Comprehensive: 10k samples
-            tasks = ['consistency_rating'] if quick_test else ['entailment_inference', 'summary_ranking', 'consistency_rating']
+            sample_size = 20 if quick_test else 1000  # Thesis-quality: 1000 samples (down from 10k)
+            tasks = ['entailment_inference', 'summary_ranking', 'consistency_rating']  # All tasks for both modes
             datasets = ['cnn_dailymail'] if quick_test else ['cnn_dailymail', 'xsum']
             prompt_type = "zero_shot"
             
@@ -296,7 +368,7 @@ class MasterExperimentRunner:
                 'status': 'completed'
             }
             
-            self.logger.info(f"ChatGPT evaluation experiment completed -> {self.chatgpt_output_dir}")
+            print(f"   ✅ ChatGPT evaluation completed -> {self.chatgpt_output_dir.name}")
             
         except Exception as e:
             self.logger.error(f"ChatGPT evaluation experiment failed: {e}")
@@ -310,7 +382,6 @@ class MasterExperimentRunner:
     
     async def _run_prompt_comparison_experiment(self, quick_test: bool):
         """Run the prompt comparison experiment."""
-        self.logger.info("Running prompt comparison experiment")
         
         try:
             # Import and run prompt comparison
@@ -333,8 +404,8 @@ class MasterExperimentRunner:
                 (self.prompt_output_dir / subdir).mkdir(parents=True, exist_ok=True)
             
             # Set parameters based on test mode
-            sample_size = 10 if quick_test else 1500  # Comprehensive: 1.5k samples
-            tasks = ['consistency_rating'] if quick_test else ['entailment_inference', 'summary_ranking', 'consistency_rating']
+            sample_size = 10 if quick_test else 500  # Thesis-quality: 500 samples (down from 1.5k)
+            tasks = ['entailment_inference', 'summary_ranking', 'consistency_rating']  # All tasks for both modes
             datasets = ['cnn_dailymail'] if quick_test else ['cnn_dailymail', 'xsum']
             
             print(f"\n🔄 Running Prompt Comparison Experiment")
@@ -357,7 +428,7 @@ class MasterExperimentRunner:
                 'status': 'completed'
             }
             
-            self.logger.info(f"Prompt comparison experiment completed -> {self.prompt_output_dir}")
+            print(f"   ✅ Prompt comparison completed -> {self.prompt_output_dir.name}")
             
         except Exception as e:
             self.logger.error(f"Prompt comparison experiment failed: {e}")
@@ -371,7 +442,6 @@ class MasterExperimentRunner:
     
     async def _run_sota_comparison_experiment(self, quick_test: bool):
         """Run the SOTA comparison experiment."""
-        self.logger.info("Running SOTA comparison experiment")
         
         try:
             # Import and run SOTA comparison
@@ -392,8 +462,8 @@ class MasterExperimentRunner:
             self.sota_output_dir.mkdir(parents=True, exist_ok=True)
             
             # Set parameters based on test mode
-            sample_size = 20 if quick_test else 2000  # Comprehensive: 2k samples
-            tasks = ['consistency_rating'] if quick_test else ['entailment_inference', 'consistency_rating']
+            sample_size = 20 if quick_test else 500  # Thesis-quality: 500 samples (down from 2k)
+            tasks = ['entailment_inference', 'consistency_rating']  # All tasks for both modes
             datasets = ['cnn_dailymail'] if quick_test else ['cnn_dailymail', 'xsum']
             
             print(f"\n⚔️  Running SOTA Comparison Experiment")
@@ -416,7 +486,7 @@ class MasterExperimentRunner:
                 'status': 'completed'
             }
             
-            self.logger.info(f"SOTA comparison experiment completed -> {self.sota_output_dir}")
+            print(f"   ✅ SOTA comparison completed -> {self.sota_output_dir.name}")
             
         except Exception as e:
             self.logger.error(f"SOTA comparison experiment failed: {e}")
@@ -430,7 +500,6 @@ class MasterExperimentRunner:
     
     async def _consolidate_experimental_results(self):
         """Consolidate results from all experiments for cross-experiment analysis."""
-        self.logger.info("Consolidating experimental results")
         
         consolidated_analysis = {
             'cross_experiment_performance': {},
@@ -579,7 +648,6 @@ class MasterExperimentRunner:
     
     async def _generate_master_visualizations(self):
         """Generate master visualizations combining results from all experiments."""
-        self.logger.info("Generating master visualizations")
         
         viz_dir = self.master_output_dir / "visualizations"
         viz_dir.mkdir(exist_ok=True)
@@ -605,7 +673,7 @@ class MasterExperimentRunner:
             }
             
         except Exception as e:
-            self.logger.warning(f"Master visualization generation failed: {e}")
+            print(f"   ⚠️  Master visualization generation failed: {e}")
             self.experiment_results['master_visualizations'] = {'error': str(e)}
     
     def _create_cost_breakdown_chart(self, viz_dir: Path):
@@ -763,8 +831,6 @@ class MasterExperimentRunner:
         
         fig_path = viz_dir / "performance_dashboard.png"
         fig.write_image(str(fig_path), width=1200, height=800, scale=2)
-        
-        self.logger.info(f"Performance dashboard saved to {fig_path}")
     
     def _create_key_findings_summary(self, viz_dir: Path):
         """Create key findings summary as JSON file."""
@@ -852,8 +918,6 @@ class MasterExperimentRunner:
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, ensure_ascii=False)
         
-        self.logger.info(f"Key findings summary saved to {json_path}")
-        
         return summary
     
     def _create_experimental_timeline(self, viz_dir: Path):
@@ -888,7 +952,6 @@ class MasterExperimentRunner:
     
     async def _generate_final_report(self):
         """Generate final consolidated report for thesis inclusion."""
-        self.logger.info("Generating final consolidated report")
         
         # Save consolidated results as JSON
         json_path = self.master_output_dir / "master_experimental_results.json"
@@ -909,9 +972,6 @@ class MasterExperimentRunner:
         readme_path = self.output_dir / "README.md"
         with open(readme_path, 'w') as f:
             f.write(self._generate_directory_readme())
-        
-        self.logger.info(f"Final reports generated in: {self.master_output_dir}")
-        self.logger.info(f"Directory structure documented in: {readme_path}")
     
     def _generate_master_report(self) -> str:
         """Generate comprehensive master report."""
@@ -1220,7 +1280,7 @@ Run complete experimental suite for ChatGPT factuality evaluation thesis
 
 Sample Size Modes:
   --quick-test: 20 samples (for testing)
-  --comprehensive: 10k/2k/1.5k samples (for thesis)
+  --comprehensive: 1k/500/500 samples (for thesis)
   default: 100 samples (for development)
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter
@@ -1244,7 +1304,7 @@ Sample Size Modes:
     parser.add_argument(
         "--comprehensive",
         action="store_true",
-        help="Run comprehensive experiments with large sample sizes (10k/2k/1.5k samples)"
+        help="Run comprehensive experiments with thesis-quality sample sizes (1k/500/500 samples)"
     )
     parser.add_argument(
         "--full-suite",
@@ -1254,9 +1314,9 @@ Sample Size Modes:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o-mini",
+        default="gpt-4.1-mini",
         choices=["gpt-4.1-mini", "gpt-4o-mini", "o1-mini", "gpt-4o"],
-        help="Model to use for experiments (default: gpt-4o-mini for cost-effectiveness)"
+        help="Model to use for experiments (default: gpt-4.1-mini for cost-effectiveness)"
     )
     parser.add_argument(
         "--tier",
@@ -1287,11 +1347,11 @@ Sample Size Modes:
         print("Running quick test suite with minimal data...")
         results = asyncio.run(master_runner.run_complete_experimental_suite(quick_test=True))
     elif args.comprehensive:
-        print("Running comprehensive experimental suite with large sample sizes...")
-        print("📊 Sample sizes: ChatGPT=10k, SOTA=2k, Prompt=1.5k")
-        print("⚠️  Warning: This will take significant time and cost!")
-        print("💰 Estimated cost: $300-500+ in OpenAI API calls")
-        print("⏱️  Estimated time: 3-6 hours")
+        print("Running comprehensive experimental suite with thesis-quality sample sizes...")
+        print("📊 Sample sizes: ChatGPT=800, SOTA=500, Prompt=500")
+        print("⚠️  Warning: This will take moderate time and cost!")
+        print("💰 Estimated cost: $20-50 in OpenAI API calls")
+        print("⏱️  Estimated time: 1-3 hours")
         
         response = input("\n🔍 Are you sure you want to proceed? (yes/no): ")
         if response.lower() != 'yes':
