@@ -404,12 +404,16 @@ class BaseFactualityTask(ABC):
             # Save intermediate results if configured
             if (
                 self.task_config.save_intermediate
-                and len(results) % (batch_size * 5) == 0
+                and len(results) % max(batch_size * 2, 10) == 0  # Save every 2 batches or at least every 10 results
             ):
                 await self._save_intermediate_results(results)
 
         # Finalize progress tracking
         summary = progress_tracker.finish()
+
+        # Save final intermediate results to ensure we always have them
+        if self.task_config.save_intermediate and results:
+            await self._save_intermediate_results(results)
 
         self.logger.info(
             f"Completed processing: {len(results)} successful, "

@@ -103,7 +103,7 @@ class PromptTemplate:
                 )
 
         elif self.task_type == "consistency_rating":
-            if not any(scale in self.template for scale in ["0-100", "0-10", "1-5"]):
+            if not any(scale in self.template for scale in ["0-100", "0–100", "0-10", "0–10", "1-5", "1–5"]):
                 errors.append(
                     "Consistency rating template should include a rating scale"
                 )
