@@ -154,6 +154,9 @@ class PromptComparisonExperiment:
         # Alias for compatibility
         self.logger = self.experiment_logger.logger
         
+        # Reduce external library logging
+        self._configure_logging_levels()
+        
         # Initialize prompt strategies for comparison
         self.prompt_strategies = ["zero_shot", "chain_of_thought"]
         
@@ -191,6 +194,61 @@ class PromptComparisonExperiment:
         
         self.logger.info(f"Updated output directory to: {self.output_dir}")
     
+    def _move_intermediate_files(self, timestamp: str) -> None:
+        """Move intermediate files from results/ to appropriate experiment directory."""
+        import datetime
+        import shutil
+        
+        # Calculate time window (±1 hour) for matching files
+        try:
+            exp_time = datetime.datetime.strptime(timestamp, '%Y%m%d_%H%M%S')
+            time_start = exp_time - datetime.timedelta(hours=1)
+            time_end = exp_time + datetime.timedelta(hours=1)
+        except ValueError:
+            self.logger.warning(f"Could not parse timestamp {timestamp}")
+            return
+        
+        results_dir = Path("results")
+        if not results_dir.exists():
+            return
+        
+        # Create experiment directories
+        exp_dir = results_dir / "experiments" / f"prompt_comparison_{timestamp}"
+        intermediate_dir = exp_dir / "intermediate_results"
+        intermediate_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Move matching intermediate files
+        moved_count = 0
+        for file_path in results_dir.iterdir():
+            if not file_path.is_file():
+                continue
+            
+            filename = file_path.name
+            # Skip if already in subdirectory or is final result
+            if "experiments/" in str(file_path) or not any(pattern in filename for pattern in 
+                ['intermediate', 'temp', 'cache', 'partial']):
+                continue
+            
+            # Extract timestamp from filename patterns
+            for pattern in [r'_(\d{8}_\d{6})', r'(\d{8}_\d{6})_', r'(\d{8}-\d{6})']:
+                import re
+                match = re.search(pattern, filename)
+                if match:
+                    try:
+                        file_timestamp = match.group(1).replace('-', '_')
+                        file_time = datetime.datetime.strptime(file_timestamp, '%Y%m%d_%H%M%S')
+                        if time_start <= file_time <= time_end:
+                            dest_path = intermediate_dir / filename
+                            shutil.move(str(file_path), str(dest_path))
+                            moved_count += 1
+                            break
+                    except (ValueError, IndexError):
+                        continue
+        
+        if moved_count > 0:
+            print(f"📁 Organized {moved_count} intermediate files into {intermediate_dir}")
+    
+    
     def _setup_visualization_theme(self):
         """Set up publication-ready visualization theme."""
         # Matplotlib settings
@@ -218,6 +276,21 @@ class PromptComparisonExperiment:
         
         # Plotly theme
         self.plotly_template = "plotly_white"
+    
+    def _configure_logging_levels(self):
+        """Configure logging levels to reduce verbosity."""
+        # Reduce external library logging
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("openai").setLevel(logging.WARNING)
+        logging.getLogger("choreographer").setLevel(logging.WARNING)
+        logging.getLogger("kaleido").setLevel(logging.WARNING)
+        logging.getLogger("progress").setLevel(logging.WARNING)
+        logging.getLogger("cost_tracker").setLevel(logging.WARNING)
+        logging.getLogger("PromptManager").setLevel(logging.WARNING)
+        logging.getLogger("OpenAIClient").setLevel(logging.WARNING)
+        logging.getLogger("transformers").setLevel(logging.ERROR)
+        logging.getLogger("absl").setLevel(logging.ERROR)
+        logging.getLogger("torch").setLevel(logging.ERROR)
     
     async def run_prompt_comparison(
         self,
@@ -249,19 +322,23 @@ class PromptComparisonExperiment:
             tasks = tasks[:1]  # Only first task
             datasets = datasets[:1]  # Only first dataset
         
-        self.logger.info(f"Experiment configuration:")
-        self.logger.info(f"  Tasks: {tasks}")
-        self.logger.info(f"  Datasets: {datasets}")
-        self.logger.info(f"  Sample size: {sample_size}")
-        self.logger.info(f"  Prompt strategies: {self.prompt_strategies}")
+        print(f"\n🧪 Running Prompt Comparison Experiment")
+        print(f"{'='*50}")
+        print(f"Tasks: {', '.join(tasks)}")
+        print(f"Datasets: {', '.join(datasets)}")
+        print(f"Sample size: {sample_size} per dataset")
+        print(f"Prompt strategies: {', '.join(self.prompt_strategies)}")
+        
+        total_combinations = len(tasks) * len(datasets) * len(self.prompt_strategies)
+        current_combination = 0
         
         # Run experiments for each combination
         for task in tasks:
             for dataset in datasets:
                 # Run multiple trials for statistical significance
                 num_trials = 3 if quick_test else 5
+                print(f"\n⚡ Task: {task} | Dataset: {dataset}")
                 for trial in range(num_trials):
-                    self.logger.info(f"Running trial {trial + 1}/{num_trials} for {task} on {dataset}")
                     await self._run_task_dataset_comparison(task, dataset, sample_size, trial_id=trial)
         
         # Perform comprehensive analysis
@@ -280,8 +357,14 @@ class PromptComparisonExperiment:
         
         # Save results
         self._save_comprehensive_results()
+
+        # Organize intermediate files
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self._move_intermediate_files(timestamp)
         
-        self.logger.info("Prompt comparison experiment completed")
+        print(f"\n✅ Prompt comparison experiment completed")
+        print(f"Results saved to: {self.output_dir}")
+        
         return self.results
     
     async def _run_task_dataset_comparison(
@@ -356,7 +439,7 @@ class PromptComparisonExperiment:
                     'timestamp': datetime.now().isoformat()
                 }
                 
-                self.logger.info(f"Completed {strategy} for {task}/{dataset} (trial {trial_id})")
+                print(f"  ✅ {strategy}: {len(examples)} samples")
                 
             except Exception as e:
                 self.logger.error(f"Failed {strategy} for {task}/{dataset} (trial {trial_id}): {e}")
@@ -530,7 +613,7 @@ class PromptComparisonExperiment:
             'metrics_dataframe': df.to_dict('records')
         }
         
-        self.logger.info("Statistical analysis completed")
+        print("📊 Statistical analysis complete")
     
     def _analyze_cost_effectiveness(self) -> None:
         """Analyze cost-effectiveness of different prompt strategies."""
@@ -600,7 +683,7 @@ class PromptComparisonExperiment:
                 }
         
         self.results['cost_analysis'] = cost_analysis
-        self.logger.info("Cost-effectiveness analysis completed")
+        print("💰 Cost analysis complete")
     
     def _perform_error_analysis(self) -> None:
         """Perform detailed error analysis."""
@@ -649,7 +732,7 @@ class PromptComparisonExperiment:
             error_analysis[strategy] = strategy_errors
         
         self.results['error_analysis'] = error_analysis
-        self.logger.info("Error analysis completed")
+        print("🔍 Error analysis complete")
     
     def _analyze_performance_correlation(self) -> None:
         """Analyze correlations between different performance metrics."""
@@ -718,7 +801,7 @@ class PromptComparisonExperiment:
                 correlation_analysis[strategy] = correlation_matrix
         
         self.results['performance_correlation'] = correlation_analysis
-        self.logger.info("Performance correlation analysis completed")
+        print("🔗 Correlation analysis complete")
     
     def _generate_comprehensive_visualizations(self) -> None:
         """Generate comprehensive visualizations for thesis."""
@@ -733,7 +816,7 @@ class PromptComparisonExperiment:
         self._plot_distribution_analysis()
         self._plot_time_series_analysis()
         
-        self.logger.info("Visualization generation completed")
+        print("📈 Visualizations complete")
     
     def _plot_performance_comparison(self) -> None:
         """Generate performance comparison plots."""
