@@ -372,8 +372,8 @@ class SummaryRankingTask(BaseFactualityTask):
             model_name=task_config_dict.get("model_name", "gpt-4.1-mini"),
             temperature=task_config_dict.get("temperature", 0.0),
             max_tokens=task_config_dict.get(
-                "max_tokens", 200
-            ),  # More tokens for ranking
+                "max_tokens", None
+            ),  # Use adaptive tokens from OpenAI client
             batch_size=task_config_dict.get(
                 "batch_size", 5
             ),  # Smaller batches for complex task
@@ -495,14 +495,33 @@ class SummaryRankingTask(BaseFactualityTask):
         summaries = example.get_summaries_for_ranking()
         num_summaries = len(summaries)
 
-        # Validate and fix ranking if necessary
+        # Smart ranking extension logic
         if len(ranking) != num_summaries:
-            logger.warning(
-                f"Ranking length mismatch for {example.example_id}, creating default ranking"
-            )
-            ranking = list(range(1, num_summaries + 1))  # Default sequential ranking
+            if len(ranking) > 0 and len(ranking) < num_summaries:
+                # Find which numbers are missing and append them
+                used_ranks = set(ranking)
+                missing_ranks = [i for i in range(1, num_summaries + 1) if i not in used_ranks]
+                
+                # Append missing ranks in order
+                ranking.extend(sorted(missing_ranks))
+                
+                logger.info(
+                    f"Extended partial ranking for {example.example_id}: {ranking} (added {missing_ranks})"
+                )
+            elif len(ranking) > num_summaries:
+                # Truncate if too many rankings provided
+                ranking = ranking[:num_summaries]
+                logger.info(
+                    f"Truncated ranking for {example.example_id}: {ranking}"
+                )
+            else:
+                # Empty or invalid ranking
+                logger.warning(
+                    f"Empty ranking for {example.example_id}, creating default ranking"
+                )
+                ranking = list(range(1, num_summaries + 1))
 
-        # Ensure ranking contains valid ranks
+        # Ensure ranking contains valid ranks (final validation)
         if not all(isinstance(r, int) and 1 <= r <= num_summaries for r in ranking):
             logger.warning(
                 f"Invalid ranks in ranking for {example.example_id}, creating default ranking"

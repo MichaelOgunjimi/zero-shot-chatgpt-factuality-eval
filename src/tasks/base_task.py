@@ -91,7 +91,7 @@ class TaskConfig:
     prompt_type: str  # "zero_shot" or "chain_of_thought"
     model_name: str = "gpt-4.1-mini"
     temperature: float = 0.0  # Deterministic for factuality evaluation
-    max_tokens: int = 150
+    max_tokens: Optional[int] = None  # Use adaptive tokens from OpenAI client
     batch_size: int = 10
     max_examples: Optional[int] = None
     include_human_eval: bool = False
@@ -116,8 +116,8 @@ class TaskConfig:
         if self.temperature < 0 or self.temperature > 2:
             raise ValueError("Temperature must be between 0 and 2")
 
-        if self.max_tokens <= 0:
-            raise ValueError("max_tokens must be positive")
+        if self.max_tokens is not None and self.max_tokens <= 0:
+            raise ValueError("max_tokens must be positive when specified")
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""

@@ -309,7 +309,7 @@ class EntailmentInferenceTask(BaseFactualityTask):
             prompt_type=task_config_dict.get("prompt_type", "zero_shot"),
             model_name=task_config_dict.get("model_name", "gpt-4.1-mini"),
             temperature=task_config_dict.get("temperature", 0.0),
-            max_tokens=task_config_dict.get("max_tokens", 50),  # Short response needed
+            max_tokens=task_config_dict.get("max_tokens", None),  # Use adaptive tokens from OpenAI client
             batch_size=task_config_dict.get("batch_size", 10),
             max_examples=task_config_dict.get("max_examples"),
             include_human_eval=task_config_dict.get("include_human_eval", False),
