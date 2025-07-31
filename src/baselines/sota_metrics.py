@@ -802,9 +802,31 @@ class BaselineComparator:
 
         for cgpt_result, baseline_result in aligned_results:
             # Extract binary predictions
-            cgpt_pred = int(cgpt_result.get("prediction", 0))
-            baseline_pred = int(baseline_result.prediction)
-
+            # ChatGPT uses binary_prediction: 1=ENTAILMENT, 0=CONTRADICTION
+            cgpt_pred = int(cgpt_result.get("binary_prediction", 0))
+            
+            baseline_pred = baseline_result.prediction
+            baseline_name = baseline_result.baseline_name
+            
+            # Handle different baseline prediction formats
+            if baseline_name == "factcc":
+                # FactCC uses prediction: 0=CORRECT(ENTAILMENT), 1=INCORRECT(CONTRADICTION)
+                # Invert to match ChatGPT's encoding: 0->1, 1->0
+                baseline_pred = 1 - int(baseline_pred)
+            elif baseline_name == "bertscore":
+                # BERTScore returns continuous similarity scores (0-1 range)
+                # Need to threshold to convert to binary classification
+                # Use adaptive threshold based on mean score for this dataset
+                # For now, use 0.85 as threshold (scores seem to be around 0.82-0.87)
+                baseline_pred = 1 if float(baseline_pred) >= 0.85 else 0
+            elif baseline_name == "rouge":
+                # ROUGE doesn't support entailment inference - should not reach here
+                self.logger.warning(f"ROUGE baseline used for entailment inference task")
+                baseline_pred = 0  # Default to contradiction
+            else:
+                # For other baselines, assume binary format matching ChatGPT
+                baseline_pred = int(baseline_pred)
+            
             chatgpt_preds.append(cgpt_pred)
             baseline_preds.append(baseline_pred)
 
@@ -879,6 +901,7 @@ class BaselineComparator:
 
         for cgpt_result, baseline_result in aligned_results:
             # Extract numerical ratings
+            # For consistency_rating task, ChatGPT uses "prediction" field with 0-100 scale
             cgpt_rating = float(cgpt_result.get("prediction", 0))
             baseline_rating = float(baseline_result.prediction)
 
