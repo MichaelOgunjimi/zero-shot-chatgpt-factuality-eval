@@ -6,11 +6,19 @@ Source: {source}
 Summary: {summary}
 
 REASONING PROCESS:
-1. Summary claims: [List all factual assertions in summary]
-2. Verification: [For each claim, mark as ✓ SUPPORTED, ✗ CONTRADICTED, or ? UNSUPPORTED by source]
-3. Score calculation: [X supported / Y total claims = Z%]
-4. Final adjustments: [Consider severity of errors]
+Let me evaluate step by step:
 
-RATING: [0-100 integer score]
+1. Summary claims: 
+- List all factual assertions in the summary
 
-JUSTIFICATION: [One sentence explaining the rating]
+2. Verification against source:
+- For each claim, mark as ✓ SUPPORTED, ✗ CONTRADICTED, or ? UNSUPPORTED by source
+
+3. Score calculation:
+- Calculate percentage of supported claims
+- Adjust for severity of contradictions
+
+4. Final assessment:
+- Consider overall factual accuracy
+
+FINAL RATING: [0-100 integer score]

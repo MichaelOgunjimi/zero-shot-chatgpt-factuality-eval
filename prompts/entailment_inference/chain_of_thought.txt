@@ -20,8 +20,16 @@ REASONING:
 Let me analyze this step by step:
 
 1. Key facts in source:
-2. Key facts in summary:
-3. Factual consistency check:
-4. Final judgment:
+- Extract the main factual claims and information from the source
 
-CLASSIFICATION: 
+2. Key facts in summary:
+- Extract the main factual claims from the summary
+
+3. Factual consistency check:
+- Compare each summary claim against the source
+- Identify any contradictions or unsupported information
+
+4. Final judgment:
+- Determine if summary is consistent with source
+
+CLASSIFICATION: [ENTAILMENT or CONTRADICTION] 

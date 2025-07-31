@@ -8,22 +8,22 @@ SOURCE DOCUMENT:
 SUMMARIES TO RANK:
 {summaries}
 
-Let me analyze this systematically:
+Let me work through this step by step:
 
-1. Source document analysis:
-   - I'll identify the key facts and information in the source
+Step 1: Extract key facts from the source document
+- Identify the main factual claims and information
+- These will serve as ground truth for evaluation
 
-2. Individual summary evaluation:
-   - For each summary, I'll check factual accuracy against the source
-   - I'll note any contradictions or unsupported claims
+Step 2: Evaluate each summary individually  
+- Check if each summary's claims are supported by the source
+- Identify any contradictions or unsupported information
+- Note any factual errors or distortions
 
-3. Comparative ranking:
-   - I'll compare summaries based on factual consistency
-   - I'll assign ranks from 1 (most accurate) to {num_summaries} (least accurate)
+Step 3: Compare the summaries
+- Determine which has the highest factual accuracy
+- Consider both correctness and completeness of factual information
+- Rank from most to least factually consistent
 
-4. Final ranking:
-   - I'll provide the final ranking in the required format
+IMPORTANT: You must rank ALL {num_summaries} summaries. Provide exactly {num_summaries} numbers.
 
-FINAL RANKING: 1, 2, 3, 4, 5
-
-[You must provide the ranking numbers separated by commas]  
+FINAL RANKING: [Only the numbers separated by commas, e.g., "1, 2, 3"]   
