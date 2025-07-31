@@ -30,6 +30,7 @@ import argparse
 import asyncio
 import json
 import logging
+import re
 import sys
 import time
 from datetime import datetime
@@ -102,6 +103,12 @@ class SOTAComparisonExperiment:
         else:
             self.output_dir = Path(f"results/experiments/{self.experiment_name}")
         
+        # Create the desired folder structure
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        (self.output_dir / "figures").mkdir(exist_ok=True)
+        (self.output_dir / "logs").mkdir(exist_ok=True)
+        (self.output_dir / "baseline_results").mkdir(exist_ok=True)
+        
         # Create output directories only if not using custom output_dir
         if not output_dir:
             create_output_directories(self.config)
@@ -110,7 +117,7 @@ class SOTAComparisonExperiment:
         self.experiment_logger = setup_experiment_logger(
             self.experiment_name,
             self.config,
-            log_dir
+            str(self.output_dir / "logs")  # Use our logs folder
         )
         self.logger = self.experiment_logger.logger
         
@@ -129,23 +136,6 @@ class SOTAComparisonExperiment:
         # Initialize baseline comparator
         self.baseline_comparator = BaselineComparator(self.config)
         
-        self.logger.info(f"Initialized SOTA comparison experiment: {self.experiment_name}")
-        
-    def _configure_logging_levels(self):
-        """Configure logging levels to reduce verbosity."""
-        # Reduce external library logging
-        logging.getLogger("httpx").setLevel(logging.WARNING)
-        logging.getLogger("openai").setLevel(logging.WARNING)
-        logging.getLogger("choreographer").setLevel(logging.WARNING)
-        logging.getLogger("kaleido").setLevel(logging.WARNING)
-        logging.getLogger("progress").setLevel(logging.WARNING)
-        logging.getLogger("cost_tracker").setLevel(logging.WARNING)
-        logging.getLogger("PromptManager").setLevel(logging.WARNING)
-        logging.getLogger("OpenAIClient").setLevel(logging.WARNING)
-        logging.getLogger("transformers").setLevel(logging.ERROR)
-        logging.getLogger("absl").setLevel(logging.ERROR)
-        logging.getLogger("torch").setLevel(logging.ERROR)
-        
         # Results storage
         self.results = {
             'experiment_metadata': {
@@ -162,7 +152,22 @@ class SOTAComparisonExperiment:
             'cost_analysis': {}
         }
         
-        self.logger.info(f"Initialized SOTA comparison experiment: {self.experiment_name}")
+        self.logger.info(f"SOTA comparison experiment initialized: {self.experiment_name}")
+    
+    def _configure_logging_levels(self):
+        """Configure logging levels to reduce verbosity."""
+        # Reduce external library logging
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("openai").setLevel(logging.WARNING)
+        logging.getLogger("choreographer").setLevel(logging.WARNING)
+        logging.getLogger("kaleido").setLevel(logging.WARNING)
+        logging.getLogger("progress").setLevel(logging.WARNING)
+        logging.getLogger("cost_tracker").setLevel(logging.WARNING)
+        logging.getLogger("PromptManager").setLevel(logging.WARNING)
+        logging.getLogger("OpenAIClient").setLevel(logging.WARNING)
+        logging.getLogger("transformers").setLevel(logging.ERROR)
+        logging.getLogger("absl").setLevel(logging.ERROR)
+        logging.getLogger("torch").setLevel(logging.ERROR)
     
     async def run_sota_comparison(
         self,
@@ -234,16 +239,15 @@ class SOTAComparisonExperiment:
         prompt_type: str
     ):
         """Run ChatGPT evaluations for comparison with baselines."""
-        print("\n🤖 Running ChatGPT Evaluations")
-        print("=" * 40)
+        print(f"\n🤖 Running ChatGPT Evaluations")
+        print("=" * 50)
         
         total_evaluations = len(tasks) * len(datasets)
         current_eval = 0
-        
         total_cost = 0.0
         
         for task_name in tasks:
-            print(f"\n⚡ Evaluating ChatGPT on task: {task_name}")
+            print(f"\n⚡ Task: {task_name}")
             self.results['chatgpt_results'][task_name] = {}
             
             # Create task instance
@@ -258,7 +262,7 @@ class SOTAComparisonExperiment:
             
             for dataset_name in datasets:
                 current_eval += 1
-                print(f"📊 [{current_eval}/{total_evaluations}] {task_name} on {dataset_name}")
+                print(f"   📊 [{current_eval}/{total_evaluations}] Processing {dataset_name} ({sample_size} examples)")
                 
                 try:
                     # Load processed dataset with synthetic labels
@@ -291,16 +295,12 @@ class SOTAComparisonExperiment:
                         'prompt_type': prompt_type
                     }
                     
-                    # Log progress
+                    # Log concise progress
                     primary_metric = performance_metrics.get('primary_metric', 'N/A')
-                    self.logger.info(
-                        f"ChatGPT - {task_name} on {dataset_name}: "
-                        f"Performance = {primary_metric}, "
-                        f"Time = {processing_time:.2f}s, "
-                        f"Cost = ${task_cost:.4f}"
-                    )
+                    print(f"   ✅ Completed: Performance={primary_metric:.3f}, Time={processing_time:.1f}s, Cost=${task_cost:.4f}")
                     
                 except Exception as e:
+                    print(f"   ❌ Failed: {str(e)}")
                     self.logger.error(f"Failed to process ChatGPT {task_name} on {dataset_name}: {e}")
                     self.results['chatgpt_results'][task_name][dataset_name] = {
                         'error': str(e),
@@ -309,6 +309,7 @@ class SOTAComparisonExperiment:
         
         # Store ChatGPT cost
         self.results['cost_analysis']['chatgpt_cost'] = total_cost
+        print(f"\n✅ ChatGPT evaluation completed. Total cost: ${total_cost:.4f}")
         self.logger.info(f"ChatGPT evaluations completed. Total cost: ${total_cost:.4f}")
     
     async def _run_baseline_evaluations(
@@ -319,28 +320,28 @@ class SOTAComparisonExperiment:
         sample_size: int
     ):
         """Run baseline method evaluations."""
-        print("\n🔧 Running Baseline Evaluations")
-        print("=" * 40)
+        print(f"\n🔧 Running Baseline Evaluations")
+        print("=" * 50)
         
         # Create baseline instances
         baseline_instances = create_all_baselines(self.config)
         
         for baseline_name in baselines:
             if baseline_name not in baseline_instances:
-                self.logger.warning(f"Baseline {baseline_name} not available, skipping")
+                print(f"⚠️  Baseline {baseline_name} not available, skipping")
                 continue
                 
-            print(f"\n🎯 Evaluating baseline: {baseline_name}")
+            print(f"\n🎯 Baseline: {baseline_name.upper()}")
             baseline = baseline_instances[baseline_name]
             self.results['baseline_results'][baseline_name] = {}
             
             for task_name in tasks:
                 # Check if baseline supports this task
                 if not baseline.supports_task(task_name):
-                    print(f"   ⚠️  Baseline {baseline_name} does not support task {task_name}, skipping")
+                    print(f"   ⚠️  Does not support {task_name}, skipping")
                     continue
                 
-                print(f"   📊 Running {baseline_name} on task: {task_name}")
+                print(f"   📊 Processing task: {task_name}")
                 self.results['baseline_results'][baseline_name][task_name] = {}
                 
                 for dataset_name in datasets:
@@ -348,7 +349,7 @@ class SOTAComparisonExperiment:
                     if (task_name not in self.results['chatgpt_results'] or 
                         dataset_name not in self.results['chatgpt_results'][task_name] or
                         'examples' not in self.results['chatgpt_results'][task_name][dataset_name]):
-                        self.logger.warning(f"No ChatGPT results for {task_name}-{dataset_name}, skipping baseline")
+                        print(f"      ⚠️  No ChatGPT data for {dataset_name}, skipping")
                         continue
                     
                     try:
@@ -357,7 +358,7 @@ class SOTAComparisonExperiment:
                         examples = chatgpt_data['examples']
                         chatgpt_predictions = chatgpt_data['predictions']
                         
-                        self.logger.info(f"Processing {baseline_name} on {dataset_name}")
+                        print(f"      🔄 Processing {dataset_name} ({len(examples)} examples)")
                         
                         # Run baseline evaluation
                         start_time = time.time()
@@ -367,7 +368,6 @@ class SOTAComparisonExperiment:
                         processing_time = time.time() - start_time
                         
                         # Compare with ChatGPT
-                        # Create proper format for comparison
                         baseline_results_dict = {baseline_name: baseline_results}
                         
                         # Convert TaskResult objects to dictionaries for comparison
@@ -375,6 +375,7 @@ class SOTAComparisonExperiment:
                             {
                                 'example_id': result.example_id,
                                 'prediction': result.prediction,
+                                'binary_prediction': getattr(result, 'binary_prediction', result.prediction),
                                 'confidence': result.confidence,
                                 'task_type': result.task_type,
                                 'prompt_type': result.prompt_type,
@@ -406,35 +407,35 @@ class SOTAComparisonExperiment:
                             'dataset_size': len(examples)
                         }
                         
-                        # Log progress
-                        # Extract correlation from the baseline's comparison result
+                        # Extract and display correlation
                         baseline_comparison = comparison_results.get(baseline_name, {})
                         if task_name == "entailment_inference":
                             correlation = baseline_comparison.get('cohens_kappa', 'N/A')
+                            metric_name = "κ"
                         elif task_name == "consistency_rating":
                             correlation = baseline_comparison.get('pearson_correlation', 'N/A')
-                        elif task_name == "summary_ranking":
-                            correlation = baseline_comparison.get('avg_spearman_rho', 'N/A')
+                            metric_name = "r"
                         else:
-                            correlation = 'N/A'
+                            correlation = baseline_comparison.get('avg_spearman_rho', 'N/A')
+                            metric_name = "ρ"
                         
                         # Handle NaN values
                         if isinstance(correlation, float) and np.isnan(correlation):
-                            correlation = 'N/A (insufficient data)'
+                            correlation = 'N/A'
+                        elif isinstance(correlation, float):
+                            correlation = f"{correlation:.3f}"
                         
-                        self.logger.info(
-                            f"{baseline_name} - {task_name} on {dataset_name}: "
-                            f"Correlation = {correlation}, "
-                            f"Time = {processing_time:.2f}s"
-                        )
+                        print(f"      ✅ {dataset_name}: {metric_name}={correlation}, Time={processing_time:.1f}s")
                         
                     except Exception as e:
+                        print(f"      ❌ Failed on {dataset_name}: {str(e)}")
                         self.logger.error(f"Failed to process {baseline_name} on {task_name}-{dataset_name}: {e}")
                         self.results['baseline_results'][baseline_name][task_name][dataset_name] = {
                             'error': str(e),
                             'status': 'failed'
                         }
         
+        print(f"\n✅ Baseline evaluations completed")
         self.logger.info("Baseline evaluations completed")
     
     async def _evaluate_baseline_on_examples(
@@ -995,28 +996,45 @@ class SOTAComparisonExperiment:
         """Generate comprehensive comparison visualizations."""
         self.logger.info("Generating comparison visualizations")
         
+        # Create output directory and figures subdirectory
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         viz_dir = self.output_dir / "figures"
-        viz_dir.mkdir(exist_ok=True)
+        viz_dir.mkdir(parents=True, exist_ok=True)
         
         try:
-            # 1. Correlation heatmap
+            # Standard visualizations
             self._create_correlation_heatmap(viz_dir)
-            
-            # 2. Baseline performance comparison
             self._create_baseline_performance_chart(viz_dir)
-            
-            # 3. Correlation scatter plots
             self._create_correlation_scatter_plots(viz_dir)
-            
-            # 4. Method ranking visualization
             self._create_method_ranking_chart(viz_dir)
+            
+            # Enhanced analysis visualizations
+            self._create_cost_analysis_chart(viz_dir)
+            self._create_processing_time_comparison(viz_dir)
+            self._create_agreement_analysis_charts(viz_dir)
+            self._create_statistical_significance_chart(viz_dir)
+            self._create_dataset_comparison_charts(viz_dir)
+            self._create_correlation_matrix_3d(viz_dir)
+            self._create_performance_radar_chart(viz_dir)
+            
+            # NEW: Additional advanced visualizations
+            self._create_correlation_stability_analysis(viz_dir)
+            self._create_performance_evolution_timeline(viz_dir)
+            self._create_baseline_robustness_analysis(viz_dir)
+            self._create_task_difficulty_heatmap(viz_dir)
+            
+            # Task-specific visualizations
+            self._create_task_specific_performance_charts(viz_dir)
             
             # Specialized visualizations for entailment inference task
             if 'entailment_inference' in self.results.get('chatgpt_results', {}):
                 self._create_entailment_inference_analysis(viz_dir)
             
+            print(f"✅ Generated {len(self.results.get('visualizations', {}))} visualizations in: {viz_dir}")
+            
         except Exception as e:
             self.logger.warning(f"Visualization generation failed: {e}")
+            print(f"⚠️  Visualization generation failed: {e}")
             self.results['visualizations'] = {'error': str(e)}
     
     def _create_correlation_heatmap(self, viz_dir: Path):
@@ -1378,6 +1396,9 @@ class SOTAComparisonExperiment:
         
     def _create_entailment_performance_chart(self, viz_dir: Path):
         """Create entailment inference specific performance chart."""
+        # Load baseline results from separate files if not in main results
+        self._load_baseline_results_for_visualization()
+        
         fig = go.Figure()
         
         datasets = ['cnn_dailymail', 'xsum']
@@ -1434,15 +1455,50 @@ class SOTAComparisonExperiment:
                         predictions = baseline_data['baseline_predictions']
                         
                         if baseline == 'factcc':
-                            # FactCC uses CONSISTENT/INCONSISTENT
-                            consistent_rate = sum(1 for pred in predictions if pred == 'CONSISTENT') / len(predictions)
-                            baseline_performance[dataset] = consistent_rate
+                            # FactCC uses binary predictions (0=CORRECT, 1=INCORRECT)
+                            # Parse predictions from string representations of BaselineResult objects
+                            parsed_predictions = []
+                            for pred in predictions:
+                                try:
+                                    if isinstance(pred, str) and 'prediction=' in pred:
+                                        # Extract prediction value from string representation
+                                        match = re.search(r'prediction=([01])', pred)
+                                        if match:
+                                            parsed_predictions.append(int(match.group(1)))
+                                    elif hasattr(pred, 'prediction'):
+                                        parsed_predictions.append(int(pred.prediction))
+                                    elif isinstance(pred, int):
+                                        parsed_predictions.append(pred)
+                                except (ValueError, AttributeError):
+                                    continue
+                            
+                            if parsed_predictions:
+                                # For FactCC: 1=INCORRECT (like "INCONSISTENT"), 0=CORRECT (like "CONSISTENT")  
+                                # We want the rate of "positive" predictions (1=INCONSISTENT/ENTAILMENT)
+                                inconsistent_rate = sum(1 for pred in parsed_predictions if pred == 1) / len(parsed_predictions)
+                                baseline_performance[dataset] = inconsistent_rate
                         else:
                             # BERTScore and ROUGE use numerical scores
-                            scores = [float(pred) if isinstance(pred, (int, float)) else 0.5 for pred in predictions]
-                            threshold = np.median(scores)
-                            above_threshold_rate = sum(1 for score in scores if score >= threshold) / len(scores)
-                            baseline_performance[dataset] = above_threshold_rate
+                            # Parse scores from string representations of BaselineResult objects
+                            scores = []
+                            for pred in predictions:
+                                try:
+                                    if isinstance(pred, str) and 'prediction=' in pred:
+                                        # Extract prediction value from string representation
+                                        match = re.search(r'prediction=([0-9.]+)', pred)
+                                        if match:
+                                            scores.append(float(match.group(1)))
+                                    elif hasattr(pred, 'prediction'):
+                                        scores.append(float(pred.prediction))
+                                    elif isinstance(pred, (int, float)):
+                                        scores.append(float(pred))
+                                except (ValueError, AttributeError):
+                                    continue
+                            
+                            if scores:
+                                threshold = np.median(scores)
+                                above_threshold_rate = sum(1 for score in scores if score >= threshold) / len(scores)
+                                baseline_performance[dataset] = above_threshold_rate
                 
                 fig.add_trace(go.Bar(
                     name=baseline.upper(),
@@ -1468,6 +1524,50 @@ class SOTAComparisonExperiment:
         
     def _create_consistency_performance_chart(self, viz_dir: Path):
         """Create consistency rating specific performance chart."""
+        # Load baseline results from separate files if not in main results
+        self._load_baseline_results_for_visualization()
+        
+        # Check if we have consistency_rating data - improved detection logic
+        has_consistency_data = (
+            'consistency_rating' in self.results.get('chatgpt_results', {}) and
+            bool(self.results['chatgpt_results']['consistency_rating'])
+        ) or any(
+            'consistency_rating' in baseline_data and bool(baseline_data.get('consistency_rating', {}))
+            for baseline_data in self.results.get('baseline_results', {}).values()
+        )
+        
+        # Debug logging to understand data structure
+        self.logger.debug(f"Checking consistency data availability:")
+        self.logger.debug(f"ChatGPT results keys: {list(self.results.get('chatgpt_results', {}).keys())}")
+        if 'consistency_rating' in self.results.get('chatgpt_results', {}):
+            consistency_data = self.results['chatgpt_results']['consistency_rating']
+            self.logger.debug(f"ChatGPT consistency_rating datasets: {list(consistency_data.keys())}")
+            for dataset, data in consistency_data.items():
+                prediction_count = len(data.get('predictions', []))
+                self.logger.debug(f"  {dataset}: {prediction_count} predictions")
+        
+        if not has_consistency_data:
+            # Create placeholder plot with informative message
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No consistency rating data available.<br>Run with --task consistency_rating to generate this chart.",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, xanchor='center', yanchor='middle',
+                showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            fig.update_layout(
+                title='Consistency Rating: Average Scores by Method',
+                xaxis_title='Dataset',
+                yaxis_title='Average Score',
+                height=500,
+                showlegend=False,
+                xaxis=dict(showgrid=False, showticklabels=False),
+                yaxis=dict(showgrid=False, showticklabels=False)
+            )
+            fig.write_image(viz_dir / 'consistency_rating_performance.png', width=800, height=500, scale=2)
+            return
+        
         fig = go.Figure()
         
         datasets = ['cnn_dailymail', 'xsum']
@@ -1476,83 +1576,1047 @@ class SOTAComparisonExperiment:
         # Calculate ChatGPT average consistency scores
         chatgpt_performance = {}
         for dataset in datasets:
-            if 'consistency_rating' in self.results['chatgpt_results']:
-                chatgpt_data = self.results['chatgpt_results']['consistency_rating'][dataset]
-                predictions = chatgpt_data['predictions']
-                # Extract numerical scores
+            if 'consistency_rating' in self.results.get('chatgpt_results', {}):
+                chatgpt_data = self.results['chatgpt_results']['consistency_rating'].get(dataset, {})
+                predictions = chatgpt_data.get('predictions', [])
+                # Extract numerical scores from predictions
                 scores = []
                 for pred in predictions:
-                    if isinstance(pred, (int, float)):
-                        scores.append(float(pred))
-                    elif isinstance(pred, str) and pred.replace('.', '').isdigit():
-                        scores.append(float(pred))
+                    try:
+                        # Handle string representations of RatingResult objects
+                        if isinstance(pred, str) and 'prediction=' in pred:
+                            # Extract prediction value from string representation
+                            match = re.search(r'prediction=([0-9.]+)', pred)
+                            if match:
+                                scores.append(float(match.group(1)))
+                        elif hasattr(pred, 'prediction') and isinstance(pred.prediction, (int, float)):
+                            scores.append(float(pred.prediction))
+                        elif hasattr(pred, 'rating') and isinstance(pred.rating, (int, float)):
+                            scores.append(float(pred.rating))
+                        elif isinstance(pred, dict):
+                            # Handle dictionary format
+                            if 'prediction' in pred and isinstance(pred['prediction'], (int, float)):
+                                scores.append(float(pred['prediction']))
+                            elif 'rating' in pred and isinstance(pred['rating'], (int, float)):
+                                scores.append(float(pred['rating']))
+                        elif isinstance(pred, (int, float)):
+                            scores.append(float(pred))
+                        elif isinstance(pred, str) and pred.replace('.', '').isdigit():
+                            scores.append(float(pred))
+                    except (ValueError, AttributeError) as e:
+                        self.logger.debug(f"Could not parse ChatGPT prediction: {str(pred)[:100]}... Error: {e}")
+                        continue
                 
                 if scores:
                     chatgpt_performance[dataset] = np.mean(scores)
+                    self.logger.debug(f"ChatGPT {dataset} consistency: {np.mean(scores):.2f} (from {len(scores)} scores)")
         
-        # Add ChatGPT performance
-        fig.add_trace(go.Bar(
-            name='ChatGPT',
-            x=datasets,
-            y=[chatgpt_performance.get(d, 0) for d in datasets],
-            marker_color='#FF6B6B',
-            text=[f'{chatgpt_performance.get(d, 0):.1f}' for d in datasets],
-            textposition='auto',
-        ))
+        # Add ChatGPT performance if available
+        if chatgpt_performance:
+            fig.add_trace(go.Bar(
+                name='ChatGPT',
+                x=list(chatgpt_performance.keys()),
+                y=list(chatgpt_performance.values()),
+                marker_color='#FF6B6B',
+                text=[f'{score:.1f}' for score in chatgpt_performance.values()],
+                textposition='auto',
+            ))
         
         # Add baseline performance
         colors = {'factcc': '#4ECDC4', 'bertscore': '#45B7D1', 'rouge': '#96CEB4'}
         
         for baseline in baselines:
-            if baseline in self.results['baseline_results']:
+            if baseline in self.results.get('baseline_results', {}):
                 baseline_performance = {}
                 for dataset in datasets:
                     baseline_data = self.results['baseline_results'][baseline].get('consistency_rating', {}).get(dataset, {})
                     
                     if 'baseline_predictions' in baseline_data:
                         predictions = baseline_data['baseline_predictions']
-                        scores = [float(pred) if isinstance(pred, (int, float)) else 0 for pred in predictions]
+                        scores = []
+                        
+                        for pred in predictions:
+                            try:
+                                # Handle string representations of BaselineResult objects
+                                if isinstance(pred, str) and 'prediction=' in pred:
+                                    # Extract prediction value from string representation
+                                    # Handle both regular floats and numpy.float64
+                                    match = re.search(r'prediction=(?:np\.float64\()?([0-9.]+)(?:\))?', pred)
+                                    if match:
+                                        scores.append(float(match.group(1)))
+                                elif isinstance(pred, (int, float)):
+                                    scores.append(float(pred))
+                                elif hasattr(pred, 'prediction'):
+                                    scores.append(float(pred.prediction))
+                            except (ValueError, AttributeError) as e:
+                                self.logger.debug(f"Could not parse prediction: {pred[:100]}... Error: {e}")
+                                continue
                         
                         if scores:
-                            # Normalize scores to 0-100 scale for comparison
-                            if baseline == 'bertscore':
-                                # BERTScore is typically 0-1, scale to 0-100
-                                baseline_performance[dataset] = np.mean(scores) * 100
-                            elif baseline == 'rouge':
-                                # ROUGE is typically 0-1, scale to 0-100  
-                                baseline_performance[dataset] = np.mean(scores) * 100
-                            else:
-                                baseline_performance[dataset] = np.mean(scores)
+                            # Baseline scores are already in appropriate scales for consistency rating
+                            baseline_performance[dataset] = np.mean(scores)
+                            
+                            self.logger.debug(f"{baseline.upper()} {dataset} consistency: {baseline_performance[dataset]:.2f} (from {len(scores)} scores)")
                 
-                fig.add_trace(go.Bar(
-                    name=baseline.upper(),
-                    x=datasets,
-                    y=[baseline_performance.get(d, 0) for d in datasets],
-                    marker_color=colors[baseline],
-                    text=[f'{baseline_performance.get(d, 0):.1f}' for d in datasets],
-                    textposition='auto',
-                ))
+                if baseline_performance:  # Only add trace if we have data
+                    fig.add_trace(go.Bar(
+                        name=baseline.upper(),
+                        x=list(baseline_performance.keys()),
+                        y=list(baseline_performance.values()),
+                        marker_color=colors[baseline],
+                        text=[f'{score:.1f}' for score in baseline_performance.values()],
+                        textposition='auto',
+                    ))
         
-        fig.update_layout(
-            title='Consistency Rating: Average Scores by Method',
-            xaxis_title='Dataset',
-            yaxis_title='Average Score',
-            barmode='group',
-            height=500,
-            showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
+        # If still no data to plot, show informative message
+        if not fig.data:
+            fig.add_annotation(
+                text="Consistency rating data detected but no valid scores found.<br>Check data format and prediction extraction logic.",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, xanchor='center', yanchor='middle',
+                showarrow=False,
+                font=dict(size=16, color="orange")
+            )
+            fig.update_layout(
+                title='Consistency Rating: Average Scores by Method',
+                xaxis_title='Dataset',
+                yaxis_title='Average Score',
+                height=500,
+                showlegend=False,
+                xaxis=dict(showgrid=False, showticklabels=False),
+                yaxis=dict(showgrid=False, showticklabels=False)
+            )
+        else:
+            fig.update_layout(
+                title='Consistency Rating: Average Scores by Method',
+                xaxis_title='Dataset',
+                yaxis_title='Average Score',
+                barmode='group',
+                height=500,
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
         
         fig.write_image(viz_dir / 'consistency_rating_performance.png', width=800, height=500, scale=2)
+
+    def _load_baseline_results_for_visualization(self):
+        """Load baseline results from separate JSON files for visualization."""
+        baseline_results_dir = self.output_dir / "baseline_results"
+        if not baseline_results_dir.exists():
+            return
+            
+        for baseline_file in baseline_results_dir.glob("*_results.json"):
+            baseline_name = baseline_file.stem.replace('_results', '')
+            try:
+                with open(baseline_file, 'r') as f:
+                    baseline_data = json.load(f)
+                    
+                # Ensure baseline_results exists in self.results
+                if 'baseline_results' not in self.results:
+                    self.results['baseline_results'] = {}
+                    
+                self.results['baseline_results'][baseline_name] = baseline_data
+                self.logger.debug(f"Loaded baseline data for {baseline_name} from {baseline_file.name}")
+            except Exception as e:
+                self.logger.warning(f"Could not load baseline data from {baseline_file.name}: {e}")
+
+    def _create_cost_analysis_chart(self, viz_dir: Path):
+        """Create cost analysis visualization."""
+        if 'cost_analysis' not in self.results or 'chatgpt_cost' not in self.results['cost_analysis']:
+            return
+            
+        chatgpt_cost = self.results['cost_analysis']['chatgpt_cost']
+        
+        # Calculate cost per task and dataset
+        cost_breakdown = {}
+        
+        for task_name, task_data in self.results['chatgpt_results'].items():
+            cost_breakdown[task_name] = {}
+            for dataset_name, dataset_data in task_data.items():
+                if 'cost' in dataset_data:
+                    cost_breakdown[task_name][dataset_name] = dataset_data['cost']
+        
+        # Create cost breakdown chart
+        fig = go.Figure()
+        
+        datasets = []
+        tasks = []
+        costs = []
+        
+        for task_name, task_costs in cost_breakdown.items():
+            for dataset_name, cost in task_costs.items():
+                tasks.append(task_name)
+                datasets.append(dataset_name)
+                costs.append(cost)
+        
+        fig.add_trace(go.Bar(
+            x=[f"{task}_{dataset}" for task, dataset in zip(tasks, datasets)],
+            y=costs,
+            marker_color=['#FF6B6B' if 'entailment' in task else '#4ECDC4' for task in tasks],
+            text=[f'${cost:.4f}' for cost in costs],
+            textposition='auto'
+        ))
+        
+        fig.update_layout(
+            title=f'ChatGPT Cost Analysis (Total: ${chatgpt_cost:.4f})',
+            xaxis_title='Task-Dataset Combination',
+            yaxis_title='Cost ($)',
+            font=dict(family='Times New Roman', size=12),
+            plot_bgcolor='white',
+            paper_bgcolor='white'
+        )
+        
+        fig.write_image(viz_dir / 'cost_analysis.png', width=1000, height=600, scale=2)
+        
+        if 'visualizations' not in self.results:
+            self.results['visualizations'] = {}
+        self.results['visualizations']['cost_analysis'] = str(viz_dir / 'cost_analysis.png')
+
+    def _create_processing_time_comparison(self, viz_dir: Path):
+        """Create processing time comparison between ChatGPT and baselines."""
+        fig = make_subplots(
+            rows=1, cols=2,
+            subplot_titles=['ChatGPT Processing Times', 'Baseline Processing Times'],
+            specs=[[{"type": "bar"}, {"type": "bar"}]]
+        )
+        
+        # ChatGPT processing times
+        chatgpt_times = []
+        chatgpt_labels = []
+        
+        for task_name, task_data in self.results['chatgpt_results'].items():
+            for dataset_name, dataset_data in task_data.items():
+                if 'processing_time' in dataset_data:
+                    chatgpt_times.append(dataset_data['processing_time'])
+                    chatgpt_labels.append(f"{task_name}_{dataset_name}")
+        
+        fig.add_trace(
+            go.Bar(
+                x=chatgpt_labels,
+                y=chatgpt_times,
+                name='ChatGPT',
+                marker_color='#FF6B6B',
+                text=[f'{t:.1f}s' for t in chatgpt_times],
+                textposition='auto'
+            ),
+            row=1, col=1
+        )
+        
+        # Baseline processing times
+        baseline_times = []
+        baseline_labels = []
+        baseline_names = []
+        
+        for baseline_name, baseline_data in self.results['baseline_results'].items():
+            for task_name, task_data in baseline_data.items():
+                for dataset_name, dataset_data in task_data.items():
+                    if 'processing_time' in dataset_data:
+                        baseline_times.append(dataset_data['processing_time'])
+                        baseline_labels.append(f"{baseline_name}_{task_name}_{dataset_name}")
+                        baseline_names.append(baseline_name)
+        
+        colors = {'factcc': '#4ECDC4', 'bertscore': '#45B7D1', 'rouge': '#96CEB4'}
+        baseline_colors = [colors.get(name, '#888888') for name in baseline_names]
+        
+        fig.add_trace(
+            go.Bar(
+                x=baseline_labels,
+                y=baseline_times,
+                name='Baselines',
+                marker_color=baseline_colors,
+                text=[f'{t:.1f}s' for t in baseline_times],
+                textposition='auto'
+            ),
+            row=1, col=2
+        )
+        
+        fig.update_layout(
+            title='Processing Time Comparison',
+            font=dict(family='Times New Roman', size=12),
+            showlegend=False
+        )
+        
+        fig.write_image(viz_dir / 'processing_time_comparison.png', width=1200, height=600, scale=2)
+        self.results['visualizations']['processing_time_comparison'] = str(viz_dir / 'processing_time_comparison.png')
+
+    def _create_agreement_analysis_charts(self, viz_dir: Path):
+        """Create comprehensive agreement analysis charts."""
+        if 'correlation_analysis' not in self.results or 'agreement_metrics' not in self.results['correlation_analysis']:
+            return
+            
+        agreement_metrics = self.results['correlation_analysis']['agreement_metrics']
+        
+        # Create agreement metrics comparison
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=['Agreement Rates', "Cohen's Kappa", 'Precision', 'Recall'],
+            specs=[[{"type": "bar"}, {"type": "bar"}],
+                   [{"type": "bar"}, {"type": "bar"}]]
+        )
+        
+        # Collect data
+        baselines = []
+        agreements = []
+        kappas = []
+        precisions = []
+        recalls = []
+        
+        for baseline_name, baseline_agreement in agreement_metrics.items():
+            for task_agreement in baseline_agreement.values():
+                for dataset_agreement in task_agreement.values():
+                    if isinstance(dataset_agreement, dict):
+                        baselines.append(baseline_name)
+                        agreements.append(dataset_agreement.get('agreement', 0))
+                        kappas.append(dataset_agreement.get('cohens_kappa', 0))
+                        precisions.append(dataset_agreement.get('precision', 0))
+                        recalls.append(dataset_agreement.get('recall', 0))
+        
+        colors = {'factcc': '#4ECDC4', 'bertscore': '#45B7D1', 'rouge': '#96CEB4'}
+        bar_colors = [colors.get(baseline, '#888888') for baseline in baselines]
+        
+        # Add traces
+        fig.add_trace(go.Bar(x=baselines, y=agreements, marker_color=bar_colors, showlegend=False), row=1, col=1)
+        fig.add_trace(go.Bar(x=baselines, y=kappas, marker_color=bar_colors, showlegend=False), row=1, col=2)
+        fig.add_trace(go.Bar(x=baselines, y=precisions, marker_color=bar_colors, showlegend=False), row=2, col=1)
+        fig.add_trace(go.Bar(x=baselines, y=recalls, marker_color=bar_colors, showlegend=False), row=2, col=2)
+        
+        fig.update_layout(
+            title='Agreement Metrics Analysis',
+            font=dict(family='Times New Roman', size=12),
+            height=800
+        )
+        
+        fig.write_image(viz_dir / 'agreement_analysis.png', width=1200, height=800, scale=2)
+        self.results['visualizations']['agreement_analysis'] = str(viz_dir / 'agreement_analysis.png')
+
+    def _create_statistical_significance_chart(self, viz_dir: Path):
+        """Create statistical significance visualization."""
+        if 'statistical_analysis' not in self.results:
+            return
+            
+        statistical_analysis = self.results['statistical_analysis']
+        correlation_significance = statistical_analysis.get('correlation_significance', {})
+        
+        # Collect significance data
+        labels = []
+        p_values = []
+        correlations = []
+        significant = []
+        
+        for baseline_name, baseline_sig in correlation_significance.items():
+            for task_name, task_sig in baseline_sig.items():
+                for dataset_name, dataset_sig in task_sig.items():
+                    if isinstance(dataset_sig, dict) and 'p_value' in dataset_sig:
+                        label = f"{baseline_name}-{task_name}-{dataset_name}"
+                        labels.append(label)
+                        p_values.append(dataset_sig['p_value'])
+                        correlations.append(abs(dataset_sig['correlation']) if not np.isnan(dataset_sig['correlation']) else 0)
+                        significant.append(dataset_sig['is_significant'])
+        
+        if not labels:
+            # Create placeholder plot if no data
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No correlation data available for significance testing.<br>This may occur when baselines have zero variance.",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, xanchor='center', yanchor='middle',
+                showarrow=False,
+                font=dict(size=14, color="gray")
+            )
+            fig.update_layout(
+                title='Statistical Significance of Correlations',
+                xaxis_title='Absolute Correlation Coefficient',
+                yaxis_title='P-value',
+                height=600,
+                showlegend=False
+            )
+            fig.write_image(viz_dir / 'statistical_significance.png', width=1000, height=600, scale=2)
+            return
+            
+        # Create significance scatter plot
+        fig = go.Figure()
+        
+        # Significant correlations
+        sig_indices = [i for i, sig in enumerate(significant) if sig]
+        non_sig_indices = [i for i, sig in enumerate(significant) if not sig]
+        
+        if sig_indices:
+            fig.add_trace(go.Scatter(
+                x=[correlations[i] for i in sig_indices],
+                y=[p_values[i] for i in sig_indices],
+                mode='markers',
+                marker=dict(color='green', size=12, symbol='circle'),
+                name='Significant (p < 0.05)',
+                text=[labels[i] for i in sig_indices],
+                hovertemplate='%{text}<br>|r|: %{x:.3f}<br>p-value: %{y:.4f}<extra></extra>'
+            ))
+        
+        if non_sig_indices:
+            fig.add_trace(go.Scatter(
+                x=[correlations[i] for i in non_sig_indices],
+                y=[p_values[i] for i in non_sig_indices],
+                mode='markers',
+                marker=dict(color='red', size=12, symbol='x'),
+                name='Not Significant',
+                text=[labels[i] for i in non_sig_indices],
+                hovertemplate='%{text}<br>|r|: %{x:.3f}<br>p-value: %{y:.4f}<extra></extra>'
+            ))
+        
+        # Add significance threshold line
+        fig.add_hline(y=0.05, line_dash="dash", line_color="black",
+                     annotation_text="p = 0.05 (significance threshold)", 
+                     annotation_position="top right")
+        
+        # Add interpretation text
+        sig_count = len(sig_indices)
+        total_count = len(labels)
+        fig.add_annotation(
+            text=f"Significant correlations: {sig_count}/{total_count}<br>" +
+                 f"Most correlations are not significant due to<br>" +
+                 f"baseline models having limited variance.",
+            xref="paper", yref="paper",
+            x=0.02, y=0.98, xanchor='left', yanchor='top',
+            showarrow=False,
+            font=dict(size=10, color="darkblue"),
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor="darkblue",
+            borderwidth=1
+        )
+        
+        fig.update_layout(
+            title='Statistical Significance of Correlations',
+            xaxis_title='Absolute Correlation Coefficient',
+            yaxis_title='P-value',
+            yaxis_type='log',
+            font=dict(family='Times New Roman', size=12),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            height=600
+        )
+        
+        fig.write_image(viz_dir / 'statistical_significance.png', width=1000, height=600, scale=2)
+        self.results['visualizations']['statistical_significance'] = str(viz_dir / 'statistical_significance.png')
+
+    def _create_dataset_comparison_charts(self, viz_dir: Path):
+        """Create dataset-specific comparison charts."""
+        datasets = set()
+        for task_data in self.results['chatgpt_results'].values():
+            datasets.update(task_data.keys())
+        
+        datasets = sorted(list(datasets))
+        
+        if len(datasets) < 2:
+            return
+            
+        # Create comparison of performance across datasets
+        fig = make_subplots(
+            rows=1, cols=len(datasets),
+            subplot_titles=[f'{dataset.upper()}' for dataset in datasets]
+        )
+        
+        # Get baseline average correlations for each dataset
+        for col, dataset in enumerate(datasets, 1):
+            baseline_correlations = {}
+            
+            # Collect correlations for this dataset
+            pearson_correlations = self.results['correlation_analysis']['pearson_correlations']
+            for baseline_name, baseline_corr in pearson_correlations.items():
+                correlations = []
+                for task_corr in baseline_corr.values():
+                    if dataset in task_corr and 'correlation' in task_corr[dataset]:
+                        corr_val = task_corr[dataset]['correlation']
+                        if not np.isnan(corr_val):
+                            correlations.append(abs(corr_val))
+                
+                if correlations:
+                    baseline_correlations[baseline_name] = np.mean(correlations)
+            
+            if baseline_correlations:
+                baselines = list(baseline_correlations.keys())
+                correlations = list(baseline_correlations.values())
+                
+                colors = {'factcc': '#4ECDC4', 'bertscore': '#45B7D1', 'rouge': '#96CEB4'}
+                bar_colors = [colors.get(baseline, '#888888') for baseline in baselines]
+                
+                fig.add_trace(
+                    go.Bar(
+                        x=baselines,
+                        y=correlations,
+                        marker_color=bar_colors,
+                        showlegend=False,
+                        text=[f'{corr:.3f}' for corr in correlations],
+                        textposition='auto'
+                    ),
+                    row=1, col=col
+                )
+        
+        fig.update_layout(
+            title='Baseline Performance Comparison Across Datasets',
+            font=dict(family='Times New Roman', size=12),
+            height=500
+        )
+        
+        fig.write_image(viz_dir / 'dataset_comparison.png', width=1200, height=500, scale=2)
+        self.results['visualizations']['dataset_comparison'] = str(viz_dir / 'dataset_comparison.png')
+
+    def _create_correlation_matrix_3d(self, viz_dir: Path):
+        """Create 3D correlation matrix visualization."""
+        pearson_correlations = self.results['correlation_analysis']['pearson_correlations']
+        
+        # Prepare data for 3D visualization
+        x_data = []  # Baselines
+        y_data = []  # Task-Dataset combinations
+        z_data = []  # Correlations
+        
+        for baseline_name, baseline_corr in pearson_correlations.items():
+            for task_name, task_corr in baseline_corr.items():
+                for dataset_name, dataset_corr in task_corr.items():
+                    if isinstance(dataset_corr, dict) and 'correlation' in dataset_corr:
+                        correlation = dataset_corr['correlation']
+                        if not np.isnan(correlation):
+                            x_data.append(baseline_name)
+                            y_data.append(f"{task_name}_{dataset_name}")
+                            z_data.append(correlation)
+        
+        if not x_data:
+            return
+            
+        # Create 3D surface plot
+        fig = go.Figure(data=[go.Scatter3d(
+            x=x_data,
+            y=y_data,
+            z=z_data,
+            mode='markers',
+            marker=dict(
+                size=8,
+                color=z_data,
+                colorscale='RdBu',
+                colorbar=dict(title="Correlation"),
+                cmin=-1,
+                cmax=1
+            ),
+            text=[f'{baseline}<br>{task_dataset}<br>r={corr:.3f}' 
+                  for baseline, task_dataset, corr in zip(x_data, y_data, z_data)],
+            hovertemplate='%{text}<extra></extra>'
+        )])
+        
+        fig.update_layout(
+            title='3D Correlation Visualization',
+            scene=dict(
+                xaxis_title='Baseline',
+                yaxis_title='Task-Dataset',
+                zaxis_title='Correlation'
+            ),
+            font=dict(family='Times New Roman', size=12)
+        )
+        
+        fig.write_image(viz_dir / 'correlation_3d.png', width=1000, height=800, scale=2)
+        self.results['visualizations']['correlation_3d'] = str(viz_dir / 'correlation_3d.png')
+
+    def _create_performance_radar_chart(self, viz_dir: Path):
+        """Create radar chart comparing baseline performance across different metrics."""
+        if 'correlation_analysis' not in self.results:
+            return
+            
+        # Get baseline performance data
+        correlation_summary = self.results['correlation_analysis'].get('correlation_summary', {})
+        baseline_avg_correlations = correlation_summary.get('correlations', {}).get('baseline_average_correlations', {})
+        baseline_avg_agreement = correlation_summary.get('agreement_metrics', {}).get('baseline_average_agreement', {})
+        
+        if not baseline_avg_correlations and not baseline_avg_agreement:
+            return
+            
+        # Prepare radar chart data
+        categories = ['Correlation Strength', 'Agreement Rate', 'Processing Speed', 'Task Coverage']
+        
+        fig = go.Figure()
+        
+        # Get processing speed data (inverse of processing time)
+        baseline_speeds = {}
+        for baseline_name, baseline_data in self.results['baseline_results'].items():
+            times = []
+            for task_data in baseline_data.values():
+                for dataset_data in task_data.values():
+                    if 'processing_time' in dataset_data:
+                        times.append(dataset_data['processing_time'])
+            if times:
+                # Normalize speed (higher is better, so use inverse)
+                avg_time = np.mean(times)
+                baseline_speeds[baseline_name] = 1 / (avg_time + 0.1)  # Add small value to avoid division by zero
+        
+        # Get task coverage (how many tasks each baseline supports)
+        baseline_coverage = {}
+        total_tasks = len(self.results['chatgpt_results'])
+        for baseline_name, baseline_data in self.results['baseline_results'].items():
+            coverage = len(baseline_data) / total_tasks if total_tasks > 0 else 0
+            baseline_coverage[baseline_name] = coverage
+        
+        # Normalize all metrics to 0-1 scale
+        def normalize_dict(d):
+            if not d:
+                return {}
+            max_val = max(d.values())
+            min_val = min(d.values())
+            if max_val == min_val:
+                return {k: 0.5 for k in d.keys()}
+            return {k: (v - min_val) / (max_val - min_val) for k, v in d.items()}
+        
+        norm_correlations = normalize_dict({k: abs(v) for k, v in baseline_avg_correlations.items()})
+        norm_agreement = normalize_dict(baseline_avg_agreement)
+        norm_speeds = normalize_dict(baseline_speeds)
+        norm_coverage = normalize_dict(baseline_coverage)
+        
+        # Create radar chart for each baseline
+        colors = {'factcc': '#4ECDC4', 'bertscore': '#45B7D1', 'rouge': '#96CEB4'}
+        
+        for baseline_name in set(list(norm_correlations.keys()) + list(norm_agreement.keys())):
+            values = [
+                norm_correlations.get(baseline_name, 0),
+                norm_agreement.get(baseline_name, 0),
+                norm_speeds.get(baseline_name, 0),
+                norm_coverage.get(baseline_name, 0)
+            ]
+            
+            # Close the radar chart
+            values.append(values[0])
+            categories_closed = categories + [categories[0]]
+            
+            fig.add_trace(go.Scatterpolar(
+                r=values,
+                theta=categories_closed,
+                fill='toself',
+                name=baseline_name.upper(),
+                line_color=colors.get(baseline_name, '#888888'),
+                fillcolor=colors.get(baseline_name, '#888888'),
+                opacity=0.3
+            ))
+        
+        fig.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 1]
+                )
+            ),
+            title='Baseline Performance Radar Chart (Normalized)',
+            font=dict(family='Times New Roman', size=12)
+        )
+        
+        fig.write_image(viz_dir / 'performance_radar.png', width=800, height=800, scale=2)
+        self.results['visualizations']['performance_radar'] = str(viz_dir / 'performance_radar.png')
+
+    def _create_correlation_stability_analysis(self, viz_dir: Path):
+        """Create correlation stability analysis comparing different correlation measures."""
+        if 'correlation_analysis' not in self.results:
+            return
+            
+        pearson_correlations = self.results['correlation_analysis'].get('pearson_correlations', {})
+        spearman_correlations = self.results['correlation_analysis'].get('spearman_correlations', {})
+        
+        if not pearson_correlations or not spearman_correlations:
+            return
+            
+        # Collect paired correlation data
+        pearson_values = []
+        spearman_values = []
+        labels = []
+        
+        for baseline_name in pearson_correlations.keys():
+            if baseline_name not in spearman_correlations:
+                continue
+                
+            for task_name in pearson_correlations[baseline_name].keys():
+                if task_name not in spearman_correlations[baseline_name]:
+                    continue
+                    
+                for dataset_name in pearson_correlations[baseline_name][task_name].keys():
+                    if dataset_name not in spearman_correlations[baseline_name][task_name]:
+                        continue
+                        
+                    pearson_data = pearson_correlations[baseline_name][task_name][dataset_name]
+                    spearman_data = spearman_correlations[baseline_name][task_name][dataset_name]
+                    
+                    if isinstance(pearson_data, dict) and isinstance(spearman_data, dict):
+                        pearson_corr = pearson_data.get('correlation', 0)
+                        spearman_corr = spearman_data.get('correlation', 0)
+                        
+                        if not np.isnan(pearson_corr) and not np.isnan(spearman_corr):
+                            pearson_values.append(pearson_corr)
+                            spearman_values.append(spearman_corr)
+                            labels.append(f"{baseline_name}_{task_name}_{dataset_name}")
+        
+        if not pearson_values:
+            return
+            
+        # Create stability comparison plot
+        fig = go.Figure()
+        
+        # Scatter plot
+        fig.add_trace(go.Scatter(
+            x=pearson_values,
+            y=spearman_values,
+            mode='markers+text',
+            text=labels,
+            textposition='top center',
+            marker=dict(
+                size=10,
+                color=pearson_values,
+                colorscale='RdBu',
+                colorbar=dict(title="Pearson Correlation"),
+                line=dict(width=1, color='black')
+            ),
+            name='Correlations'
+        ))
+        
+        # Add perfect correlation line
+        min_val = min(min(pearson_values), min(spearman_values))
+        max_val = max(max(pearson_values), max(spearman_values))
+        fig.add_trace(go.Scatter(
+            x=[min_val, max_val],
+            y=[min_val, max_val],
+            mode='lines',
+            line=dict(color='red', dash='dash'),
+            name='Perfect Agreement',
+            showlegend=False
+        ))
+        
+        fig.update_layout(
+            title='Correlation Stability: Pearson vs Spearman',
+            xaxis_title='Pearson Correlation',
+            yaxis_title='Spearman Correlation',
+            font=dict(family='Times New Roman', size=12),
+            plot_bgcolor='white',
+            paper_bgcolor='white'
+        )
+        
+        fig.write_image(viz_dir / 'correlation_stability_analysis.png', width=1000, height=800, scale=2)
+        self.results['visualizations']['correlation_stability_analysis'] = str(viz_dir / 'correlation_stability_analysis.png')
+
+    def _create_performance_evolution_timeline(self, viz_dir: Path):
+        """Create timeline showing performance evolution across different metrics."""
+        if 'chatgpt_results' not in self.results:
+            return
+            
+        # Create timeline data
+        timeline_data = []
+        
+        for task_name, task_data in self.results['chatgpt_results'].items():
+            for dataset_name, dataset_data in task_data.items():
+                if 'performance_metrics' in dataset_data:
+                    metrics = dataset_data['performance_metrics']
+                    timeline_data.append({
+                        'task_dataset': f"{task_name}_{dataset_name}",
+                        'performance': metrics.get('primary_metric', 0),
+                        'cost': dataset_data.get('cost', 0),
+                        'processing_time': dataset_data.get('processing_time', 0)
+                    })
+        
+        if not timeline_data:
+            return
+            
+        # Sort by performance
+        timeline_data.sort(key=lambda x: x['performance'])
+        
+        fig = make_subplots(
+            rows=3, cols=1,
+            subplot_titles=['Performance Scores', 'Processing Costs', 'Processing Times'],
+            vertical_spacing=0.08
+        )
+        
+        x_labels = [item['task_dataset'] for item in timeline_data]
+        
+        # Performance evolution
+        fig.add_trace(
+            go.Scatter(
+                x=x_labels,
+                y=[item['performance'] for item in timeline_data],
+                mode='lines+markers',
+                name='Performance',
+                line=dict(color='#FF6B6B', width=3),
+                marker=dict(size=8)
+            ),
+            row=1, col=1
+        )
+        
+        # Cost evolution
+        fig.add_trace(
+            go.Scatter(
+                x=x_labels,
+                y=[item['cost'] for item in timeline_data],
+                mode='lines+markers',
+                name='Cost',
+                line=dict(color='#4ECDC4', width=3),
+                marker=dict(size=8)
+            ),
+            row=2, col=1
+        )
+        
+        # Processing time evolution
+        fig.add_trace(
+            go.Scatter(
+                x=x_labels,
+                y=[item['processing_time'] for item in timeline_data],
+                mode='lines+markers',
+                name='Time',
+                line=dict(color='#45B7D1', width=3),
+                marker=dict(size=8)
+            ),
+            row=3, col=1
+        )
+        
+        fig.update_layout(
+            title='Performance Evolution Timeline',
+            font=dict(family='Times New Roman', size=12),
+            height=900,
+            showlegend=False
+        )
+        
+        fig.write_image(viz_dir / 'performance_evolution_timeline.png', width=1200, height=900, scale=2)
+        self.results['visualizations']['performance_evolution_timeline'] = str(viz_dir / 'performance_evolution_timeline.png')
+
+    def _create_baseline_robustness_analysis(self, viz_dir: Path):
+        """Create robustness analysis showing baseline performance consistency."""
+        if 'correlation_analysis' not in self.results:
+            return
+            
+        pearson_correlations = self.results['correlation_analysis'].get('pearson_correlations', {})
+        
+        # Calculate robustness metrics for each baseline
+        robustness_data = {}
+        
+        for baseline_name, baseline_data in pearson_correlations.items():
+            correlations = []
+            
+            for task_name, task_data in baseline_data.items():
+                for dataset_name, dataset_result in task_data.items():
+                    if isinstance(dataset_result, dict):
+                        corr = dataset_result.get('correlation', 0)
+                        if not np.isnan(corr):
+                            correlations.append(abs(corr))
+            
+            if correlations:
+                robustness_data[baseline_name] = {
+                    'mean': np.mean(correlations),
+                    'std': np.std(correlations),
+                    'min': np.min(correlations),
+                    'max': np.max(correlations),
+                    'consistency': 1 - (np.std(correlations) / np.mean(correlations)) if np.mean(correlations) > 0 else 0
+                }
+        
+        if not robustness_data:
+            return
+            
+        # Create robustness visualization
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=['Mean Performance', 'Performance Variance', 'Performance Range', 'Consistency Score'],
+            specs=[[{"type": "bar"}, {"type": "bar"}],
+                   [{"type": "bar"}, {"type": "bar"}]]
+        )
+        
+        baselines = list(robustness_data.keys())
+        colors = {'factcc': '#4ECDC4', 'bertscore': '#45B7D1', 'rouge': '#96CEB4'}
+        bar_colors = [colors.get(baseline, '#888888') for baseline in baselines]
+        
+        # Mean performance
+        fig.add_trace(
+            go.Bar(x=baselines, y=[robustness_data[b]['mean'] for b in baselines], 
+                   marker_color=bar_colors, showlegend=False),
+            row=1, col=1
+        )
+        
+        # Performance variance
+        fig.add_trace(
+            go.Bar(x=baselines, y=[robustness_data[b]['std'] for b in baselines], 
+                   marker_color=bar_colors, showlegend=False),
+            row=1, col=2
+        )
+        
+        # Performance range
+        fig.add_trace(
+            go.Bar(x=baselines, y=[robustness_data[b]['max'] - robustness_data[b]['min'] for b in baselines], 
+                   marker_color=bar_colors, showlegend=False),
+            row=2, col=1
+        )
+        
+        # Consistency score
+        fig.add_trace(
+            go.Bar(x=baselines, y=[robustness_data[b]['consistency'] for b in baselines], 
+                   marker_color=bar_colors, showlegend=False),
+            row=2, col=2
+        )
+        
+        fig.update_layout(
+            title='Baseline Robustness Analysis',
+            font=dict(family='Times New Roman', size=12),
+            height=800
+        )
+        
+        fig.write_image(viz_dir / 'baseline_robustness_analysis.png', width=1200, height=800, scale=2)
+        self.results['visualizations']['baseline_robustness_analysis'] = str(viz_dir / 'baseline_robustness_analysis.png')
+
+    def _create_task_difficulty_heatmap(self, viz_dir: Path):
+        """Create heatmap showing task difficulty based on multiple metrics."""
+        if 'chatgpt_results' not in self.results or 'baseline_results' not in self.results:
+            return
+            
+        # Collect difficulty metrics
+        task_difficulty = {}
+        
+        for task_name, task_data in self.results['chatgpt_results'].items():
+            difficulty_metrics = {}
+            
+            # Average performance (lower = more difficult)
+            performances = []
+            costs = []
+            times = []
+            
+            for dataset_name, dataset_data in task_data.items():
+                if 'performance_metrics' in dataset_data:
+                    performances.append(dataset_data['performance_metrics'].get('primary_metric', 0))
+                costs.append(dataset_data.get('cost', 0))
+                times.append(dataset_data.get('processing_time', 0))
+            
+            if performances:
+                difficulty_metrics['low_performance'] = 1 - np.mean(performances)  # Invert so higher = more difficult
+                difficulty_metrics['high_cost'] = np.mean(costs) * 1000  # Scale for visibility
+                difficulty_metrics['long_processing'] = np.mean(times)
+                
+                # Baseline disagreement (higher = more difficult)
+                correlations = []
+                if task_name in self.results.get('correlation_analysis', {}).get('pearson_correlations', {}):
+                    for baseline_data in self.results['correlation_analysis']['pearson_correlations'].values():
+                        if task_name in baseline_data:
+                            for dataset_data in baseline_data[task_name].values():
+                                if isinstance(dataset_data, dict):
+                                    corr = dataset_data.get('correlation', 0)
+                                    if not np.isnan(corr):
+                                        correlations.append(abs(corr))
+                
+                difficulty_metrics['baseline_disagreement'] = 1 - np.mean(correlations) if correlations else 0.5
+                
+                task_difficulty[task_name] = difficulty_metrics
+        
+        if not task_difficulty:
+            return
+            
+        # Create heatmap
+        tasks = list(task_difficulty.keys())
+        metrics = ['low_performance', 'high_cost', 'long_processing', 'baseline_disagreement']
+        metric_labels = ['Low Performance', 'High Cost', 'Long Processing', 'Baseline Disagreement']
+        
+        # Normalize data for heatmap
+        heatmap_data = []
+        for metric in metrics:
+            metric_values = [task_difficulty[task][metric] for task in tasks]
+            max_val = max(metric_values) if metric_values else 1
+            min_val = min(metric_values) if metric_values else 0
+            
+            if max_val == min_val:
+                normalized = [0.5] * len(metric_values)
+            else:
+                normalized = [(val - min_val) / (max_val - min_val) for val in metric_values]
+            
+            heatmap_data.append(normalized)
+        
+        fig = go.Figure(data=go.Heatmap(
+            z=heatmap_data,
+            x=[task.replace('_', ' ').title() for task in tasks],
+            y=metric_labels,
+            colorscale='Reds',
+            colorbar=dict(title="Difficulty Level"),
+            text=[[f'{task_difficulty[tasks[j]][metrics[i]]:.3f}' for j in range(len(tasks))] for i in range(len(metrics))],
+            texttemplate='%{text}',
+            textfont={"size": 10}
+        ))
+        
+        fig.update_layout(
+            title='Task Difficulty Analysis Heatmap',
+            font=dict(family='Times New Roman', size=12),
+            height=500
+        )
+        
+        fig.write_image(viz_dir / 'task_difficulty_heatmap.png', width=800, height=500, scale=2)
+        self.results['visualizations']['task_difficulty_heatmap'] = str(viz_dir / 'task_difficulty_heatmap.png')
 
     async def _save_results(self):
         """Save comprehensive results and generate report."""
         self.logger.info("Saving results and generating report")
         
-        # Save as JSON
+        # Create intermediate_results subfolder for better organization
+        intermediate_results_dir = self.output_dir / "intermediate_results"
+        intermediate_results_dir.mkdir(exist_ok=True)
+        
+        # Move intermediate result files from general results folder to experiment folder
+        # Use experiment timestamp to avoid moving files from other experiments
+        general_results_dir = Path("results")
+        if general_results_dir.exists():
+            # Extract timestamp from experiment name for precise file matching
+            experiment_timestamp = self.experiment_name.split('_')[-2:]  # Get last two parts (date_time)
+            if len(experiment_timestamp) == 2:
+                date_part, time_part = experiment_timestamp
+                # Start with specific hour matching (first 2 digits of time)
+                hour_pattern = f"*_intermediate_{date_part}_{time_part[0:2]}*.json"
+                
+                moved_files = []
+                for intermediate_file in general_results_dir.glob(hour_pattern):
+                    try:
+                        destination = intermediate_results_dir / intermediate_file.name
+                        if not destination.exists():  # Avoid duplicate moves
+                            intermediate_file.rename(destination)
+                            moved_files.append(intermediate_file.name)
+                    except Exception as e:
+                        self.logger.warning(f"Could not move intermediate file {intermediate_file.name}: {e}")
+                
+                # If no files found with hour matching, try broader time window
+                # This accounts for intermediate files generated during the experiment run
+                if not moved_files:
+                    # Try within ±1 hour window to catch files generated during execution
+                    current_hour = int(time_part[0:2])
+                    for hour_offset in [-1, 0, 1]:
+                        search_hour = (current_hour + hour_offset) % 24
+                        broader_pattern = f"*_intermediate_{date_part}_{search_hour:02d}*.json"
+                        
+                        for intermediate_file in general_results_dir.glob(broader_pattern):
+                            try:
+                                destination = intermediate_results_dir / intermediate_file.name
+                                if not destination.exists():  # Avoid duplicate moves
+                                    intermediate_file.rename(destination)
+                                    moved_files.append(intermediate_file.name)
+                            except Exception as e:
+                                self.logger.warning(f"Could not move intermediate file {intermediate_file.name}: {e}")
+                
+                # Final fallback: all files from the same date
+                if not moved_files:
+                    self.logger.warning(f"No intermediate files found with hour matching. Trying date-only pattern.")
+                    fallback_pattern = f"*_intermediate_{date_part}*.json"
+                    for intermediate_file in general_results_dir.glob(fallback_pattern):
+                        try:
+                            destination = intermediate_results_dir / intermediate_file.name
+                            if not destination.exists():  # Avoid duplicate moves
+                                intermediate_file.rename(destination)
+                                moved_files.append(intermediate_file.name)
+                        except Exception as e:
+                            self.logger.warning(f"Could not move intermediate file {intermediate_file.name}: {e}")
+                
+                if moved_files:
+                    print(f"📁 Organized {len(moved_files)} intermediate files into {intermediate_results_dir}")
+                else:
+                    self.logger.warning("No intermediate files found to move. This might indicate the tasks didn't generate intermediate results.")
+            else:
+                self.logger.warning(f"Could not parse experiment timestamp from name: {self.experiment_name}")
+        
+        # Save main results as JSON
         json_path = self.output_dir / "sota_comparison_results.json"
         with open(json_path, 'w') as f:
             json.dump(self.results, f, indent=2, default=str)
+        
+        # Save individual baseline results in baseline_results folder
+        baseline_results_dir = self.output_dir / "baseline_results"
+        for baseline_name, baseline_data in self.results.get('baseline_results', {}).items():
+            baseline_file = baseline_results_dir / f"{baseline_name}_results.json"
+            with open(baseline_file, 'w') as f:
+                json.dump(baseline_data, f, indent=2, default=str)
         
         # Generate markdown report
         report_path = self.output_dir / "sota_comparison_report.md"
@@ -1560,6 +2624,10 @@ class SOTAComparisonExperiment:
             f.write(self._generate_comparison_report())
         
         self.logger.info(f"Results saved to: {self.output_dir}")
+        self.logger.info(f"Baseline results saved to: {baseline_results_dir}")
+        self.logger.info(f"Intermediate results saved to: {intermediate_results_dir}")
+        self.logger.info(f"Figures saved to: {self.output_dir / 'figures'}")
+        self.logger.info(f"Logs saved to: {self.output_dir / 'logs'}")
     
     def _generate_comparison_report(self) -> str:
         """Generate comprehensive comparison report."""
@@ -1784,8 +2852,8 @@ def main():
     sample_size = args.sample_size
     
     if args.quick_test:
-        sample_size = 20
-        print("Running quick test with 20 examples per dataset")
+        sample_size = 50
+        print("Running quick test with 50 examples per dataset")
     
     # Initialize and run experiment
     experiment = SOTAComparisonExperiment(

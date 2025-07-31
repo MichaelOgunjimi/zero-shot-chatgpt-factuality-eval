@@ -74,7 +74,7 @@ class ChatGPTEvaluationExperiment:
     providing comprehensive performance analysis and thesis-ready results.
     """
     
-    def __init__(self, config_path: str = None, experiment_name: str = None, log_dir: str = None, output_dir: str = None, model: str = "gpt-4o-mini", tier: str = "tier2"):
+    def __init__(self, config_path: str = None, experiment_name: str = None, log_dir: str = None, output_dir: str = None, model: str = "gpt-4.1-mini", tier: str = "tier2"):
         """Initialize the experiment runner."""
         # Load configuration with model-specific settings
         self.config = get_config(model=model, tier=tier)
@@ -84,7 +84,7 @@ class ChatGPTEvaluationExperiment:
         self.tier = tier
         
         # Set up experiment tracking
-        self.experiment_name = experiment_name or f"chatgpt_eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.experiment_name = experiment_name or f"chatgpt_evaluation_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         # Use provided output_dir or create default
         if output_dir:
@@ -103,6 +103,9 @@ class ChatGPTEvaluationExperiment:
             log_dir
         )
         self.logger = self.experiment_logger.logger
+        
+        # Reduce external library logging
+        self._configure_logging_levels()
         
         # Set up reproducibility
         setup_reproducibility(self.config)
@@ -125,10 +128,21 @@ class ChatGPTEvaluationExperiment:
             'cost_analysis': {}
         }
         
-        self.logger.info(f"Initialized ChatGPT evaluation experiment: {self.experiment_name}", extra={
-            'experiment_name': self.experiment_name,
-            'metadata': {'config_path': config_path, 'output_dir': str(self.output_dir)}
-        })
+        self.logger.info(f"ChatGPT evaluation experiment initialized: {self.experiment_name}")
+    
+    def _configure_logging_levels(self) -> None:
+        """Configure logging levels to reduce verbosity of external libraries."""
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("openai").setLevel(logging.WARNING)
+        logging.getLogger("choreographer").setLevel(logging.WARNING)
+        logging.getLogger("kaleido").setLevel(logging.WARNING)
+        logging.getLogger("progress").setLevel(logging.WARNING)
+        logging.getLogger("cost_tracker").setLevel(logging.WARNING)
+        logging.getLogger("PromptManager").setLevel(logging.WARNING)
+        logging.getLogger("OpenAIClient").setLevel(logging.WARNING)
+        logging.getLogger("transformers").setLevel(logging.ERROR)
+        logging.getLogger("absl").setLevel(logging.ERROR)
+        logging.getLogger("torch").setLevel(logging.ERROR)
     
     async def run_full_evaluation(
         self, 
@@ -149,10 +163,7 @@ class ChatGPTEvaluationExperiment:
         Returns:
             Complete evaluation results
         """
-        self.logger.info("Starting ChatGPT factuality evaluation", extra={
-            'experiment_name': self.experiment_name,
-            'metadata': {'tasks': tasks, 'datasets': datasets, 'sample_size': sample_size, 'prompt_type': prompt_type}
-        })
+        self.logger.info("Starting ChatGPT factuality evaluation")
         
         # Set defaults
         if tasks is None:
@@ -190,31 +201,18 @@ class ChatGPTEvaluationExperiment:
         prompt_type: str
     ):
         """Run evaluations for all specified tasks and datasets."""
-        self.logger.info(f"Running evaluations for tasks: {tasks}", extra={
-            'experiment_name': self.experiment_name,
-            'metadata': {'tasks': tasks, 'num_tasks': len(tasks)}
-        })
-        self.logger.info(f"Using datasets: {datasets}", extra={
-            'experiment_name': self.experiment_name,
-            'metadata': {'datasets': datasets, 'num_datasets': len(datasets)}
-        })
-        self.logger.info(f"Sample size: {sample_size}", extra={
-            'experiment_name': self.experiment_name,
-            'metadata': {'sample_size': sample_size}
-        })
-        self.logger.info(f"Prompt type: {prompt_type}", extra={
-            'experiment_name': self.experiment_name,
-            'metadata': {'prompt_type': prompt_type}
-        })
+        print(f"\n🤖 Running ChatGPT Evaluations")
+        print(f"{'='*50}")
+        print(f"Tasks: {', '.join(tasks)}")
+        print(f"Datasets: {', '.join(datasets)}")
+        print(f"Sample size: {sample_size} per dataset")
+        print(f"Prompt type: {prompt_type}")
         
         total_cost = 0.0
+        task_count = 0
+        total_tasks = len(tasks) * len(datasets)
         
         for task_name in tasks:
-            self.logger.info(f"Evaluating task: {task_name}", extra={
-                'experiment_name': self.experiment_name,
-                'task_name': task_name,
-                'metadata': {'prompt_type': prompt_type, 'datasets': datasets}
-            })
             self.results['task_results'][task_name] = {}
             
             # Create task instance with specified prompt type
@@ -228,12 +226,11 @@ class ChatGPTEvaluationExperiment:
             task = create_task(task_name, task_config)
             evaluator = EvaluatorFactory.create_evaluator(task_name)
             
+            print(f"\n⚡ Task: {task_name}")
+            
             for dataset_name in datasets:
-                self.logger.info(f"Processing dataset: {dataset_name}", extra={
-                    'experiment_name': self.experiment_name,
-                    'task_name': task_name,
-                    'metadata': {'dataset_name': dataset_name, 'sample_size': sample_size}
-                })
+                task_count += 1
+                print(f"   📊 [{task_count}/{total_tasks}] Processing {dataset_name} ({sample_size} examples)")
                 
                 try:
                     # Load dataset
@@ -267,27 +264,13 @@ class ChatGPTEvaluationExperiment:
                         'prompt_type': prompt_type
                     }
                     
-                    # Log progress with structured metadata
+                    # Clean progress output
                     primary_metric = performance_metrics.get('primary_metric', 'N/A')
-                    self.logger.info(
-                        f"Task {task_name} on {dataset_name}: "
-                        f"Performance = {primary_metric}, "
-                        f"Time = {processing_time:.2f}s, "
-                        f"Cost = ${task_cost:.4f}",
-                        extra={
-                            'experiment_name': self.experiment_name,
-                            'task_name': task_name,
-                            'cost': task_cost,
-                            'duration': processing_time,
-                            'metadata': {
-                                'dataset_name': dataset_name,
-                                'dataset_size': len(examples),
-                                'primary_metric': primary_metric,
-                                'performance_metrics': performance_metrics,
-                                'prompt_type': prompt_type
-                            }
-                        }
-                    )
+                    print(f"   ✅ Completed: Performance={primary_metric}, Time={processing_time:.1f}s, Cost=${task_cost:.4f}")
+                    
+                    # Log only essential info
+                    self.logger.info(f"Task {task_name} on {dataset_name} completed: "
+                                   f"Performance={primary_metric}, Time={processing_time:.1f}s, Cost=${task_cost:.4f}")
                     
                 except Exception as e:
                     self.logger.error(f"Failed to process {task_name} on {dataset_name}: {e}")
@@ -298,14 +281,12 @@ class ChatGPTEvaluationExperiment:
         
         # Store total cost
         self.results['cost_analysis']['total_cost'] = total_cost
-        self.logger.info(f"Total experiment cost: ${total_cost:.4f}", extra={
-            'experiment_name': self.experiment_name,
-            'cost': total_cost,
-            'metadata': {'total_cost': total_cost, 'num_tasks': len(tasks), 'num_datasets': len(datasets)}
-        })
+        print(f"\n✅ ChatGPT evaluation completed. Total cost: ${total_cost:.4f}")
+        self.logger.info(f"ChatGPT evaluations completed. Total cost: ${total_cost:.4f}")
     
     async def _analyze_performance(self):
         """Analyze performance across tasks and datasets."""
+        print("\n📊 Analyzing performance across tasks and datasets...")
         self.logger.info("Analyzing performance across tasks and datasets")
         
         performance_analysis = {
@@ -365,6 +346,7 @@ class ChatGPTEvaluationExperiment:
         performance_analysis['performance_insights'] = self._generate_performance_insights(performance_analysis)
         
         self.results['performance_analysis'] = performance_analysis
+        print("📊 Performance analysis complete")
     
     def _calculate_variance(self, values: List[float]) -> float:
         """Calculate variance of a list of values."""
@@ -491,6 +473,7 @@ class ChatGPTEvaluationExperiment:
     
     async def _generate_visualizations(self):
         """Generate publication-quality visualizations."""
+        print("📈 Generating visualizations...")
         self.logger.info("Generating visualizations")
         
         viz_dir = self.output_dir / "figures"
@@ -510,7 +493,7 @@ class ChatGPTEvaluationExperiment:
                 fig.savefig(str(fig_path), dpi=300, bbox_inches='tight')
                 plt.close(fig)
                 generated_plots['task_performance_comparison'] = str(fig_path)
-                self.logger.info(f"Generated visualization: {fig_path}")
+                print(f"   ✅ Generated: task_performance_comparison.png")
                 
                 # 2. Performance metrics breakdown
                 self._generate_metrics_breakdown_plot(task_data, viz_dir, generated_plots)
@@ -523,11 +506,16 @@ class ChatGPTEvaluationExperiment:
                 
                 self.results['visualizations'] = generated_plots
                 
+                total_plots = len(generated_plots)
+                print(f"✅ Generated {total_plots} visualizations in: {viz_dir}")
+                
             else:
+                print("⚠️  No valid data for visualization")
                 self.logger.warning("No valid data for visualization")
                 self.results['visualizations'] = {'error': 'No valid data for visualization'}
         
         except Exception as e:
+            print(f"⚠️  Visualization generation failed: {e}")
             self.logger.warning(f"Visualization generation failed: {e}")
             self.results['visualizations'] = {'error': str(e)}
     
@@ -741,7 +729,7 @@ class ChatGPTEvaluationExperiment:
             fig.savefig(str(fig_path), dpi=300, bbox_inches='tight')
             plt.close(fig)
             generated_plots['evaluation_metrics_detailed'] = str(fig_path)
-            self.logger.info(f"Generated evaluation metrics plot: {fig_path}")
+            print(f"   ✅ Generated: evaluation_metrics_detailed.png")
             
         except Exception as e:
             self.logger.warning(f"Failed to generate evaluation metrics plot: {e}")
@@ -788,7 +776,7 @@ class ChatGPTEvaluationExperiment:
             fig.savefig(str(fig_path), dpi=300, bbox_inches='tight')
             plt.close(fig)
             generated_plots['metrics_breakdown'] = str(fig_path)
-            self.logger.info(f"Generated metrics breakdown plot: {fig_path}")
+            print(f"   ✅ Generated: metrics_breakdown.png")
             
         except Exception as e:
             self.logger.warning(f"Failed to generate metrics breakdown plot: {e}")
@@ -842,7 +830,7 @@ class ChatGPTEvaluationExperiment:
             fig.savefig(str(fig_path), dpi=300, bbox_inches='tight')
             plt.close(fig)
             generated_plots['dataset_comparison'] = str(fig_path)
-            self.logger.info(f"Generated dataset comparison plot: {fig_path}")
+            print(f"   ✅ Generated: dataset_comparison.png")
             
         except Exception as e:
             self.logger.warning(f"Failed to generate dataset comparison plot: {e}")
@@ -927,7 +915,7 @@ class ChatGPTEvaluationExperiment:
             fig.savefig(str(fig_path), dpi=300, bbox_inches='tight')
             plt.close(fig)
             generated_plots['dataset_comparison'] = str(fig_path)
-            self.logger.info(f"Generated dataset comparison plot: {fig_path}")
+            print(f"   ✅ Generated: dataset_comparison.png")
             
         except Exception as e:
             self.logger.warning(f"Failed to generate dataset comparison plot: {e}")
@@ -1079,7 +1067,11 @@ class ChatGPTEvaluationExperiment:
     
     async def _save_results(self):
         """Save experiment results in multiple formats."""
+        print("💾 Saving results...")
         self.logger.info("Saving results")
+        
+        # Move intermediate files to organized location
+        self._move_intermediate_files()
         
         # Save as JSON
         json_path = self.output_dir / "results.json"
@@ -1091,7 +1083,66 @@ class ChatGPTEvaluationExperiment:
         with open(report_path, 'w') as f:
             f.write(self._generate_markdown_report())
         
+        print(f"✅ Results saved to: {self.output_dir}")
         self.logger.info(f"Results saved to: {self.output_dir}")
+    
+    def _move_intermediate_files(self):
+        """Move intermediate result files to organized location."""
+        try:
+            # Create intermediate_results subfolder for better organization
+            intermediate_results_dir = self.output_dir / "intermediate_results"
+            intermediate_results_dir.mkdir(exist_ok=True)
+            
+            # Move intermediate result files from general results folder to experiment folder
+            # Use experiment timestamp to avoid moving files from other experiments
+            general_results_dir = Path("results")
+            if general_results_dir.exists():
+                # Extract timestamp from experiment name for precise file matching
+                experiment_timestamp = self.experiment_name.split('_')[-2:]  # Get last two parts (date_time)
+                if len(experiment_timestamp) == 2:
+                    date_part, time_part = experiment_timestamp
+                    # Start with specific hour matching (first 2 digits of time)
+                    hour_pattern = f"*_intermediate_{date_part}_{time_part[0:2]}*.json"
+                    
+                    moved_files = []
+                    for intermediate_file in general_results_dir.glob(hour_pattern):
+                        try:
+                            destination = intermediate_results_dir / intermediate_file.name
+                            if not destination.exists():  # Avoid duplicate moves
+                                intermediate_file.rename(destination)
+                                moved_files.append(intermediate_file.name)
+                        except Exception as e:
+                            self.logger.warning(f"Could not move intermediate file {intermediate_file.name}: {e}")
+                    
+                    # If no files found with hour matching, try broader time window
+                    # This accounts for intermediate files generated during the experiment run
+                    if not moved_files:
+                        # Try within ±1 hour window to catch files generated during execution
+                        current_hour = int(time_part[0:2])
+                        for hour_offset in [-1, 0, 1]:
+                            search_hour = (current_hour + hour_offset) % 24
+                            broader_pattern = f"*_intermediate_{date_part}_{search_hour:02d}*.json"
+                            
+                            for intermediate_file in general_results_dir.glob(broader_pattern):
+                                try:
+                                    destination = intermediate_results_dir / intermediate_file.name
+                                    if not destination.exists():  # Avoid duplicate moves
+                                        intermediate_file.rename(destination)
+                                        moved_files.append(intermediate_file.name)
+                                except Exception as e:
+                                    self.logger.warning(f"Could not move intermediate file {intermediate_file.name}: {e}")
+                    
+                    if moved_files:
+                        print(f"📁 Moved {len(moved_files)} intermediate files to intermediate_results/")
+                    else:
+                        self.logger.info("No intermediate files found to move")
+                else:
+                    self.logger.warning("Could not extract timestamp from experiment name for intermediate file matching")
+            else:
+                self.logger.info("No results directory found for intermediate file collection")
+                
+        except Exception as e:
+            self.logger.error(f"Error moving intermediate files: {e}")
     
     def _generate_markdown_report(self) -> str:
         """Generate comprehensive markdown report."""
@@ -1291,8 +1342,16 @@ def main():
     print(f"Output directory: {experiment.output_dir}")
     print(f"Total cost: ${results.get('cost_analysis', {}).get('total_cost', 0):.4f}")
     
+    # Print directory structure
+    print(f"\n📁 Results Structure:")
+    print(f"├── Results: {experiment.output_dir}")
+    if (experiment.output_dir / "figures").exists():
+        print(f"├── Figures: {experiment.output_dir}/figures")
+    if (experiment.output_dir / "intermediate_results").exists():
+        print(f"└── Intermediate: {experiment.output_dir}/intermediate_results")
+    
     # Print task results summary
-    print(f"\nTask Performance Summary:")
+    print(f"\n📊 Task Performance Summary:")
     for task_name, task_results in results['task_results'].items():
         task_performances = []
         for dataset_results in task_results.values():
