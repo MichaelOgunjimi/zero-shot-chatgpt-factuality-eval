@@ -1,8 +1,6 @@
 # ChatGPT Factuality Evaluation for Text Summarization
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/download)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![University of Manchester](https://img.shields.io/badge/University-Manchester-red.svg)](https://www.manchester.ac.uk/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/download) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![University of Manchester](https://img.## 📈 Experimental Frameworkhields.io/badge/University-Manchester-red.svg)](https://www.manchester.ac.uk/) [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 - **FactCC**: BERT-based factual consistency classifier
 - **BERTScore**: Contextual embedding similarity with RoBERTa-Large
@@ -25,11 +23,11 @@ tasks, with comprehensive statistical analysis and human correlation studies.
 ### ✅ What's Implemented
 
 - **🚀 Complete 3-Task System**: All three factuality tasks fully implemented and tested
-- **🤖 Full ChatGPT Integration**: Production-ready OpenAI API client with cost tracking and rate limiting
-- **📝 Comprehensive Prompt System**: Zero-shot and chain-of-thought prompts for all tasks
-- **📊 SOTA Baseline Comparison**: FactCC, BERTScore, ROUGE, and other state-of-the-art metrics
-- **📈 Statistical Analysis Framework**: Correlation analysis, significance testing, and human evaluation
-- **⚙️ Thesis-Ready Infrastructure**: Configuration management, experiment tracking, and publication-quality outputs
+- **🤖 Dynamic Model Configuration**: Support for gpt-4o-mini, gpt-4.1-mini, gpt-4o, and o1-mini with automatic tier-based rate limiting
+- **📝 Comprehensive Prompt System**: Zero-shot and chain-of-thought prompts for all tasks with enhanced validation
+- **📊 SOTA Baseline Comparison**: FactCC, BERTScore, ROUGE with fixed prediction encoding for accurate comparison  
+- **📈 Advanced Statistical Analysis**: 12 visualization types, correlation analysis, significance testing, and publication-ready figures
+- **⚙️ Thesis-Ready Infrastructure**: Enhanced experiment tracking, automatic file organization, and professional output formatting
 
 ## 🏗️ System Architecture
 
@@ -38,13 +36,18 @@ factuality-evaluation/
 ├── 📄 README.md                           # Project documentation
 ├── 📄 requirements.txt                    # Dependencies  
 ├── 📄 .env.template                       # Environment setup template
-├── � ingest.py                           # Codebase documentation generator
-├── 📄 cost_comparison.py                  # Cost analysis utility
+├── 📄 ingest.py                           # Codebase documentation generator
 ├── 📄 LICENSE                             # MIT License
+├── 📄 treePath.py                         # Directory tree utility
 │
 ├── 📁 config/
 │   ├── ⚙️ default.yaml                   # Main system configuration
-│   └── ⚙️ gpt41_mini_tier1.yaml         # GPT-4.1 Mini optimized config
+│   ├── 📄 USAGE_EXAMPLES.yaml            # Configuration usage examples
+│   └── 📁 models/                        # Dynamic model configurations
+│       ├── ⚙️ gpt-4.1-mini_tier2.yaml   # GPT-4.1 Mini Tier 2 config
+│       ├── ⚙️ gpt-4o-mini_tier2.yaml    # GPT-4o Mini Tier 2 config
+│       ├── ⚙️ gpt-4o_tier2.yaml         # GPT-4o Tier 2 config
+│       └── ⚙️ o1-mini_tier2.yaml        # O1 Mini Tier 2 config
 │
 ├── 📁 src/                               # Core implementation
 │   ├── 📁 tasks/                         # ✅ Three factuality tasks
@@ -88,8 +91,7 @@ factuality-evaluation/
 │   ├── 🐍 check_environment.py         # Environment validation
 │   ├── 🐍 estimate_costs.py            # Cost estimation
 │   ├── 🐍 quick_test.py                # Quick system validation
-│   ├── 🐍 download_all_datasets.py     # Dataset download utility
-│   └── � index.py                     # Scripts overview
+│   └── 🐍 index.py                     # Scripts overview
 │
 ├── 📁 prompts/                          # Prompt templates
 │   ├── 📁 consistency_rating/           # Rating prompts
@@ -148,14 +150,19 @@ factuality-evaluation/
 ### ✅ Production-Ready OpenAI Client
 
 ```python
-# Fully implemented with enterprise features
+# Fully implemented with enterprise features and dynamic model selection
 from src.llm_clients import OpenAIClient
+from src.utils.config import get_config
 
+# Cost-optimized configuration (recommended for thesis research)
+config = get_config(model='gpt-4o-mini', tier='tier2')
 client = OpenAIClient(config)
-# ✅ Rate limiting (50 req/min configurable)
-# ✅ Cost tracking ($25/day budget monitoring)  
+
+# ✅ Dynamic model selection (gpt-4o-mini, gpt-4.1-mini, gpt-4o, o1-mini)
+# ✅ Automatic tier-based rate limiting (90% safety margins)
+# ✅ Real-time cost tracking with budget enforcement
 # ✅ Response parsing for all three tasks
-# ✅ Error handling and retries
+# ✅ Error handling and retries with exponential backoff
 # ✅ Token counting and optimization
 ```
 
@@ -177,10 +184,16 @@ manager = PromptManager(config)
 ### ✅ Implemented Baselines
 
 - **FactCC**: BERT-based factual consistency classifier (`salesforce/factcc`)
-- **BERTScore**: Contextual embedding similarity with RoBERTa-Large
+- **BERTScore**: Contextual embedding similarity with RoBERTa-Large  
 - **ROUGE**: N-gram overlap metrics (ROUGE-1, ROUGE-2, ROUGE-L)
-- **QAGS**: Question-answering based evaluation framework
-- **FEQA**: Faithfulness evaluation via question answering
+
+### ✅ Fixed Prediction Encoding Issues
+
+Recent improvements include critical bug fixes for baseline comparison:
+
+- **FactCC Encoding**: Fixed prediction inversion (0=CORRECT→1=ENTAILMENT, 1=INCORRECT→0=CONTRADICTION)
+- **BERTScore Thresholding**: Added adaptive threshold-based binary classification (threshold=0.85)
+- **Consistent Comparison**: All baselines now use aligned prediction encodings with ChatGPT
 
 ### ✅ Comparison Framework
 
@@ -239,43 +252,107 @@ echo "OPENAI_API_KEY=sk-your-key-here" >> .env
 ### 3. **Run Complete Evaluation** (Ready to Use)
 
 ```bash
-# Test all three tasks
-python experiments/run_all_experiments.py --quick-test
+# Quick test with cost-optimized model (recommended)
+python experiments/run_all_experiments.py --model gpt-4o-mini --tier tier2 --quick-test
 
-# Full experimental suite  
-python experiments/run_all_experiments.py --config config/default.yaml
+# Full experimental suite with balanced performance
+python experiments/run_all_experiments.py --model gpt-4.1-mini --tier tier2
+
+# Maximum capability experiments
+python experiments/run_all_experiments.py --model gpt-4o --tier tier2
 
 # Specific task evaluation
 python -c "
+from src.utils.config import get_config
 from src import create_task, quick_load_dataset
-task = create_task('entailment_inference')
+
+# Load cost-optimized configuration
+config = get_config(model='gpt-4o-mini', tier='tier2')
+task = create_task('entailment_inference', config)
 data = quick_load_dataset('cnn_dailymail', 10)
 results = await task.process_examples(data)
 print(f'Accuracy: {task.evaluate_predictions(results)}')"
 ```
 
-## 📈 Experimental Framework
+## � Recent Improvements (July 2025)
+
+### ✅ Enhanced Experimental Suite
+
+**Latest updates improve experimental reliability and provide publication-quality analysis:**
+
+#### **Advanced Analysis Framework**
+
+- **12 New Visualization Types**: Statistical significance plots, 3D correlation matrices, performance radar charts
+- **Enhanced Statistical Analysis**: Confidence intervals, p-value analysis, correlation stability testing  
+- **Publication-Ready Outputs**: Professional figures with Times New Roman fonts and consistent styling
+- **Baseline Robustness Analysis**: Comprehensive evaluation of baseline performance consistency
+
+#### **Improved User Experience**
+
+- **Clean Console Output**: Emoji-enhanced progress indicators and reduced logging noise
+- **Phase-by-Phase Feedback**: Clear execution progress through 7-phase experimental pipeline
+- **Better File Organization**: Automatic intermediate file management with timestamp-based organization
+- **Enhanced Error Handling**: Robust validation and recovery mechanisms
+
+#### **Critical Bug Fixes**
+
+- **Baseline Prediction Encoding**: Fixed systematic bias in FactCC and BERTScore comparison logic
+- **Prompt Validation**: Enhanced support for Unicode rating scales (0–100, 0–10, 1–5)
+- **Task Processing**: Increased intermediate save frequency for better data integrity
+
+#### **Optimized Configurations**
+
+- **Thesis-Quality Sample Sizes**: 1000 samples for ChatGPT evaluation, 500 for comparison studies
+- **Cost Management**: Optimized experimental parameters for budget-conscious thesis research
+- **Improved Reliability**: More frequent intermediate saves and better progress tracking
+
+### 🎯 Impact on Thesis Research
+
+These improvements ensure:
+
+- **Higher Experimental Validity**: Fixed encoding bugs eliminate systematic correlation bias
+- **Better Analysis Depth**: 12 new visualization types provide comprehensive insights
+- **Enhanced Reproducibility**: Improved file organization and intermediate saves
+- **Professional Output**: Publication-ready figures and analysis suitable for academic submission
+
+## �📈 Experimental Framework
 
 ### ✅ Ready-to-Run Experiments
 
 #### **Baseline Comparison**
 
 ```bash
-# Compare ChatGPT against all SOTA methods
+# Compare ChatGPT against all SOTA methods (cost-optimized)
 python experiments/sota_comparison.py \
+  --model gpt-4o-mini --tier tier2 \
   --datasets cnn_dailymail xsum \
   --tasks all \
   --sample-size 500
+
+# High-performance baseline comparison
+python experiments/sota_comparison.py \
+  --model gpt-4.1-mini --tier tier2 \
+  --datasets cnn_dailymail xsum \
+  --tasks all \
+  --sample-size 1000
 ```
 
 #### **Prompt Ablation Study**
 
 ```bash
-# Zero-shot vs Chain-of-Thought comparison
+# Zero-shot vs Chain-of-Thought comparison (cost-optimized)
 python experiments/prompt_comparison.py \
+  --model gpt-4o-mini --tier tier2 \
   --task entailment_inference \
   --dataset cnn_dailymail \
   --sample-size 200
+
+# Comprehensive prompt comparison
+python experiments/prompt_comparison.py \
+  --model gpt-4.1-mini --tier tier2 \
+  --tasks all \
+  --datasets cnn_dailymail xsum \
+  --sample-size 500
 ```
 
 ### ✅ Statistical Analysis
@@ -304,38 +381,80 @@ Based on preliminary testing and related work:
 | **ChatGPT Zero-Shot** | **0.76 ± 0.03**     | **0.71 ± 0.04**     | **0.73 ± 0.03**    |
 | **ChatGPT CoT**       | **0.79 ± 0.02**     | **0.75 ± 0.03**     | **0.78 ± 0.03**    |
 
-*Results from pilot testing on CNN/DailyMail (n=200)*
+### Results from pilot testing on CNN/DailyMail (n=200)
 
-## ⚙️ Configuration System
+## ⚙️ Dynamic Model Configuration System
 
-### ✅ Comprehensive YAML Configuration
+### ✅ Flexible Model Selection with Tier-Based Rate Limits
+
+The system now features a sophisticated dynamic configuration system that supports multiple OpenAI models with automatic tier-based rate limiting:
+
+```python
+# Dynamic model configuration with automatic tier detection
+from src.utils.config import get_config
+
+# Cost-optimized setup (75% cheaper than GPT-4o)
+config = get_config(model='gpt-4o-mini', tier='tier2')
+
+# Balanced performance setup
+config = get_config(model='gpt-4.1-mini', tier='tier2')
+
+# Maximum capability setup
+config = get_config(model='gpt-4o', tier='tier2')
+
+# Reasoning-optimized setup
+config = get_config(model='o1-mini', tier='tier2')
+```
+
+### ✅ Supported Models and Rate Limits
+
+| Model | RPM Limit | TPM Limit | Batch Limit | Use Case |
+|-------|-----------|-----------|-------------|----------|
+| **gpt-4o-mini** | 2,000 | 2M | 2M | Cost optimization (thesis research) |
+| **gpt-4.1-mini** | 5,000 | 2M | 20M | Balanced performance |
+| **gpt-4o** | 5,000 | 450K | 1.35M | Maximum capability |
+| **o1-mini** | 2,000 | 2M | 2M | Complex reasoning tasks |
+
+> **Note**: All limits include 90% safety margins for reliable operation
+
+### ✅ Experiment Command Examples
+
+```bash
+# Cost-optimized experiments (recommended for thesis)
+python experiments/run_all_experiments.py --model gpt-4o-mini --tier tier2
+
+# Balanced performance experiments
+python experiments/prompt_comparison.py --model gpt-4.1-mini --tier tier2
+
+# Maximum capability experiments
+python experiments/sota_comparison.py --model gpt-4o --tier tier2
+
+# Reasoning-focused experiments
+python experiments/run_chatgpt_evaluation.py --model o1-mini --tier tier2
+```
+
+### ✅ Configuration File Structure
 
 ```yaml
-# Complete configuration management (config/default.yaml)
-project:
-  name: "chatgpt-factuality-eval-thesis"
-  author: "Michael Ogunjimi"
-  institution: "University of Manchester"
+# Example: config/models/gpt-4o-mini_tier2.yaml
+model:
+  name: "gpt-4o-mini"
+  tier: "tier2"
+  
+rate_limits:
+  requests_per_minute: 1800  # 90% of 2000 limit
+  tokens_per_minute: 1800000  # 90% of 2M limit
+  batch_queue_limit: 1800000  # 90% of 2M limit
 
-tasks:
-  entailment_inference:
-    enabled: true
-    prompt_types: [ "zero_shot", "chain_of_thought" ]
-    max_tokens: 50
+costs:
+  input_per_1k_tokens: 0.00015
+  output_per_1k_tokens: 0.0006
 
-openai:
-  models:
-    primary: "gpt-4.1-mini"
-    fallback: "o1-mini"
-  cost_control:
-    daily_budget: 25.0
-    total_budget: 150.0
-
-experiments:
-  baseline_comparison:
-    datasets: [ "cnn_dailymail", "xsum" ]
-    sample_size: 1000
-    statistical_analysis: true
+features:
+  supports_json_mode: true
+  supports_function_calling: true
+  context_window: 128000
+  max_output_tokens: 16384
 ```
 
 ## 🧪 Testing & Quality Assurance
