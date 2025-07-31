@@ -131,8 +131,8 @@ openai:
   models:
     # Example: primary: "gpt-4.1-mini"  # Set via model-specific config
     # Example: fallbacks: ["gpt-4o-mini", "o1-mini"]  # Set via model-specific config
-    primary: null # Must be set via model-specific configuration
-    fallbacks: []
+    primary: "gpt-4.1-mini" # Default primary model
+    fallbacks: ["gpt-4o-mini", "o1-mini"]
 
   # API configuration
   api:
@@ -157,7 +157,10 @@ openai:
   # Generation parameters (optimized for GPT-4.1 Mini)
   generation:
     temperature: 0.0 # Deterministic for evaluation consistency
-    max_tokens: 2048 # Increased for GPT-4.1 Mini's capabilities
+    max_tokens: 8192 # High limit for proper chain-of-thought reasoning
+    adaptive_tokens: true # Adjust based on input length and prompt type
+    min_tokens: 1024 # Minimum for zero-shot
+    max_tokens_cot: 8192 # Maximum for chain-of-thought
     top_p: 1.0
     frequency_penalty: 0.0
     presence_penalty: 0.0
