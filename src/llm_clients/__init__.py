@@ -3,11 +3,11 @@ LLM Clients Module for ChatGPT Factuality Evaluation
 ==================================================
 
 Comprehensive LLM client implementations for OpenAI API integration
-with rate limiting, cost tracking, and academic research features.
+with rate limiting, cost tracking, batch processing, and academic research features.
 
 This module provides robust API integration specifically designed for
 factuality evaluation research with proper error handling, logging,
-and budget management.
+budget management, and cost-effective batch processing capabilities.
 
 Author: Michael Ogunjimi
 Institution: University of Manchester
@@ -32,17 +32,29 @@ from .openai_client import (
     parse_factuality_response,
 )
 
+from .openai_client_batch import (
+    # Batch client class
+    OpenAIBatchClient,
+    # Batch result handling
+    BatchResult,
+)
+
 __all__ = [
-    # Core client
+    # Core clients
     "OpenAIClient",
+    "OpenAIBatchClient",
     # Response types
     "ChatGPTResponse",
     "APICallResult",
+    "BatchResult",
     # Supporting classes
     "RateLimiter",
     "CostCalculator",
     # Utility functions
     "create_openai_client",
+    "create_batch_client",
+    "setup_chatgpt_client",
+    "setup_batch_client",
     "validate_openai_config",
     "estimate_token_cost",
     "parse_factuality_response",
@@ -85,14 +97,42 @@ def get_client_info() -> dict:
         "version": __version__,
         "features": [
             "Rate limiting",
-            "Cost tracking",
+            "Cost tracking", 
             "Error handling",
             "Response parsing",
             "Academic logging",
             "Budget management",
+            "Batch processing",
+            "Cost optimization",
         ],
-        "description": "OpenAI API client for ChatGPT factuality evaluation research",
+        "description": "OpenAI API clients for ChatGPT factuality evaluation research with batch processing support",
     }
+
+
+def create_batch_client(
+    model: str = "gpt-4.1-mini", 
+    tier: str = "tier2",
+    experiment_name: Optional[str] = None
+) -> 'OpenAIBatchClient':
+    """
+    Create an OpenAI batch client with proper configuration.
+    
+    Args:
+        model: Model name to use (default: gpt-4.1-mini)
+        tier: API tier configuration (default: tier2) 
+        experiment_name: Optional experiment name for tracking
+        
+    Returns:
+        Configured OpenAIBatchClient instance
+        
+    Example:
+        >>> client = create_batch_client("gpt-4.1-mini", "tier2", "my_experiment")
+        >>> # Use client for batch processing
+    """
+    from ..utils.config import get_config
+    
+    config = get_config(model=model, tier=tier)
+    return OpenAIBatchClient(config=config, experiment_name=experiment_name)
 
 
 def validate_model_name(model_name: str) -> bool:
@@ -212,3 +252,33 @@ def setup_chatgpt_client(
         }
 
     return create_openai_client(config)
+
+
+def setup_batch_client(
+    model_name: Optional[str] = None,
+    experiment_name: Optional[str] = None,
+    tier: str = "tier2"
+) -> OpenAIBatchClient:
+    """
+    Quick setup function for batch processing client with reasonable defaults.
+    
+    Args:
+        model_name: Model to use (default: gpt-4.1-mini)
+        experiment_name: Name for the experiment (auto-generated if None)
+        tier: API tier configuration (default: tier2)
+        
+    Returns:
+        Configured OpenAI batch client
+        
+    Example:
+        >>> batch_client = setup_batch_client("gpt-4.1-mini", "my_experiment")
+        >>> # Use for cost-effective batch processing
+    """
+    if model_name is None:
+        model_name = "gpt-4.1-mini"  # Default to most cost-effective model
+        
+    return create_batch_client(
+        model=model_name,
+        tier=tier,
+        experiment_name=experiment_name
+    )
