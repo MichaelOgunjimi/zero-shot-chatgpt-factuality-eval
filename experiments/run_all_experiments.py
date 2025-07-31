@@ -342,11 +342,18 @@ class MasterExperimentRunner:
             # Create the output directory structure for the nested experiment
             self.chatgpt_output_dir.mkdir(parents=True, exist_ok=True)
             
-            # Set parameters based on test mode
-            sample_size = 20 if quick_test else 1000  # Thesis-quality: 1000 samples (down from 10k)
-            tasks = ['entailment_inference', 'summary_ranking', 'consistency_rating']  # All tasks for both modes
-            datasets = ['cnn_dailymail'] if quick_test else ['cnn_dailymail', 'xsum']
-            prompt_type = "zero_shot"
+            # Get sample size from configuration based on test mode
+            mode = "quick_test" if quick_test else "comprehensive"
+            chatgpt_config = self.config.get('experiments', {}).get('main_experiments', {}).get('chatgpt_evaluation', {})
+            sample_sizes = chatgpt_config.get('sample_sizes', {})
+            sample_size = sample_sizes.get(mode, chatgpt_config.get('sample_size', 1000))
+            
+            # Get other parameters from config
+            tasks = chatgpt_config.get('tasks', ['entailment_inference', 'summary_ranking', 'consistency_rating'])
+            datasets = chatgpt_config.get('datasets', ['cnn_dailymail', 'xsum'])
+            if quick_test:
+                datasets = ['cnn_dailymail']  # Limit to one dataset for quick test
+            prompt_type = chatgpt_config.get('prompt_type', 'zero_shot')
             
             print(f"\n🤖 Running ChatGPT Evaluation Experiment")
             print(f"   📁 Output: {self.chatgpt_output_dir}")
@@ -403,10 +410,17 @@ class MasterExperimentRunner:
             for subdir in ['results', 'figures', 'tables', 'analysis', 'latex', 'data']:
                 (self.prompt_output_dir / subdir).mkdir(parents=True, exist_ok=True)
             
-            # Set parameters based on test mode
-            sample_size = 10 if quick_test else 500  # Thesis-quality: 500 samples (down from 1.5k)
-            tasks = ['entailment_inference', 'summary_ranking', 'consistency_rating']  # All tasks for both modes
-            datasets = ['cnn_dailymail'] if quick_test else ['cnn_dailymail', 'xsum']
+            # Get sample size from configuration based on test mode
+            mode = "quick_test" if quick_test else "comprehensive"
+            prompt_config = self.config.get('experiments', {}).get('main_experiments', {}).get('prompt_comparison', {})
+            sample_sizes = prompt_config.get('sample_sizes', {})
+            sample_size = sample_sizes.get(mode, prompt_config.get('sample_size', 200))
+            
+            # Get other parameters from config
+            tasks = prompt_config.get('tasks', ['entailment_inference', 'summary_ranking', 'consistency_rating'])
+            datasets = prompt_config.get('datasets', ['cnn_dailymail', 'xsum'])
+            if quick_test:
+                datasets = ['cnn_dailymail']  # Limit to one dataset for quick test
             
             print(f"\n🔄 Running Prompt Comparison Experiment")
             print(f"   📁 Output: {self.prompt_output_dir}")
@@ -461,10 +475,17 @@ class MasterExperimentRunner:
             # Create the output directory structure for the nested experiment
             self.sota_output_dir.mkdir(parents=True, exist_ok=True)
             
-            # Set parameters based on test mode
-            sample_size = 20 if quick_test else 500  # Thesis-quality: 500 samples (down from 2k)
-            tasks = ['entailment_inference', 'consistency_rating']  # All tasks for both modes
-            datasets = ['cnn_dailymail'] if quick_test else ['cnn_dailymail', 'xsum']
+            # Get sample size from configuration based on test mode
+            mode = "quick_test" if quick_test else "comprehensive"
+            sota_config = self.config.get('experiments', {}).get('main_experiments', {}).get('sota_comparison', {})
+            sample_sizes = sota_config.get('sample_sizes', {})
+            sample_size = sample_sizes.get(mode, sota_config.get('sample_size', 300))
+            
+            # Get other parameters from config
+            tasks = sota_config.get('tasks', ['entailment_inference', 'consistency_rating'])
+            datasets = sota_config.get('datasets', ['cnn_dailymail', 'xsum'])
+            if quick_test:
+                datasets = ['cnn_dailymail']  # Limit to one dataset for quick test
             
             print(f"\n⚔️  Running SOTA Comparison Experiment")
             print(f"   📁 Output: {self.sota_output_dir}")

@@ -376,6 +376,23 @@ experiments:
 
   # Experiment types
   main_experiments:
+    # Core ChatGPT evaluation experiment
+    chatgpt_evaluation:
+      enabled: true
+      name: "ChatGPT Factuality Evaluation"
+      description: "Core ChatGPT performance assessment across factuality tasks"
+      sample_size: 1000
+      tasks: ["entailment_inference", "summary_ranking", "consistency_rating"]
+      datasets: ["cnn_dailymail", "xsum"]
+      prompt_type: "zero_shot"
+
+      # Mode-specific sample sizes
+      sample_sizes:
+        quick_test: 20
+        development: 100
+        comprehensive: 1000
+        thesis_scale: 10000
+
     # Zero-shot vs Chain-of-Thought comparison
     prompt_comparison:
       enabled: true
@@ -384,6 +401,13 @@ experiments:
       sample_size: 200
       tasks: ["entailment_inference", "summary_ranking", "consistency_rating"]
       datasets: ["cnn_dailymail", "xsum"]
+
+      # Mode-specific sample sizes
+      sample_sizes:
+        quick_test: 10
+        development: 50
+        comprehensive: 500
+        thesis_scale: 1500
 
     # Task performance analysis
     task_analysis:
@@ -402,6 +426,13 @@ experiments:
       sample_size: 300
       baselines: ["factcc", "bertscore", "rouge"]
       tasks: ["entailment_inference", "consistency_rating"]
+
+      # Mode-specific sample sizes
+      sample_sizes:
+        quick_test: 20
+        development: 100
+        comprehensive: 500
+        thesis_scale: 2000
 
   # Ablation studies
   ablation_studies:

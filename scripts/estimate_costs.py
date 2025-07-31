@@ -168,6 +168,10 @@ class CostEstimator:
     
     def estimate_predefined_experiments(self) -> Dict:
         """Estimate costs for predefined experiment configurations based on actual project setup."""
+        
+        # Get experiment configurations from YAML
+        main_experiments = self.config.get('experiments', {}).get('main_experiments', {})
+        
         experiments = {
             'quick_test': {
                 'tasks': ['consistency_rating'],
@@ -182,57 +186,49 @@ class CostEstimator:
                 'sample_size': 100,
                 'prompt_types': ['zero_shot'],
                 'description': 'Development testing'
-            },
-            'prompt_comparison': {
-                'tasks': ['entailment_inference', 'summary_ranking', 'consistency_rating'],
-                'datasets': ['cnn_dailymail', 'xsum'],
-                'sample_size': 200,  # From config: experiments.main_experiments.prompt_comparison.sample_size
-                'prompt_types': ['zero_shot', 'chain_of_thought'],
-                'description': 'Prompt comparison experiment (config-based)'
-            },
-            'chatgpt_evaluation': {
-                'tasks': ['entailment_inference', 'summary_ranking', 'consistency_rating'],
-                'datasets': ['cnn_dailymail', 'xsum'],
-                'sample_size': 1000,
-                'prompt_types': ['zero_shot'],
-                'description': 'Main ChatGPT evaluation (development scale)'
-            },
-            'sota_comparison': {
-                'tasks': ['entailment_inference', 'consistency_rating'],
-                'datasets': ['cnn_dailymail', 'xsum'],
-                'sample_size': 300,  # From config: experiments.main_experiments.sota_comparison.sample_size
-                'prompt_types': ['zero_shot'],
-                'description': 'SOTA baseline comparison (config-based)'
-            },
-            'comprehensive_thesis': {
-                'tasks': ['entailment_inference', 'summary_ranking', 'consistency_rating'],
-                'datasets': ['cnn_dailymail', 'xsum'],
-                'sample_size': 2000,
-                'prompt_types': ['zero_shot', 'chain_of_thought'],
-                'description': 'Complete thesis experimental suite'
-            },
-            # New experiments based on run_all_experiments.py
-            'thesis_chatgpt_evaluation': {
-                'tasks': ['entailment_inference', 'summary_ranking', 'consistency_rating'],
-                'datasets': ['cnn_dailymail', 'xsum'],
-                'sample_size': 10000,  # From run_all_experiments.py: 10k samples
-                'prompt_types': ['zero_shot'],
-                'description': 'Full-scale ChatGPT evaluation (thesis comprehensive)'
-            },
-            'thesis_prompt_comparison': {
-                'tasks': ['entailment_inference', 'summary_ranking', 'consistency_rating'],
-                'datasets': ['cnn_dailymail', 'xsum'],
-                'sample_size': 1500,  # From run_all_experiments.py: 1.5k samples
-                'prompt_types': ['zero_shot', 'chain_of_thought'],
-                'description': 'Full-scale prompt comparison (thesis comprehensive)'
-            },
-            'thesis_sota_comparison': {
-                'tasks': ['entailment_inference', 'consistency_rating'],
-                'datasets': ['cnn_dailymail', 'xsum'],
-                'sample_size': 2000,  # From run_all_experiments.py: 2k samples
-                'prompt_types': ['zero_shot'],
-                'description': 'Full-scale SOTA comparison (thesis comprehensive)'
             }
+        }
+        
+        # Add config-based experiments
+        for exp_name, exp_config in main_experiments.items():
+            if exp_config.get('enabled', True):
+                # Get sample sizes for different modes
+                sample_sizes = exp_config.get('sample_sizes', {})
+                
+                # Standard experiment (comprehensive mode)
+                experiments[exp_name] = {
+                    'tasks': exp_config.get('tasks', ['consistency_rating']),
+                    'datasets': exp_config.get('datasets', ['cnn_dailymail']),
+                    'sample_size': sample_sizes.get('comprehensive', exp_config.get('sample_size', 100)),
+                    'prompt_types': ['zero_shot', 'chain_of_thought'] if exp_name == 'prompt_comparison' else ['zero_shot'],
+                    'description': exp_config.get('description', f'{exp_name.replace("_", " ").title()} experiment (config-based)')
+                }
+                
+                # Quick test version
+                experiments[f'{exp_name}_quick'] = {
+                    'tasks': exp_config.get('tasks', ['consistency_rating']),
+                    'datasets': ['cnn_dailymail'],  # Limit to one dataset for quick test
+                    'sample_size': sample_sizes.get('quick_test', 20),
+                    'prompt_types': ['zero_shot'],  # Simple prompt for quick test
+                    'description': f'{exp_name.replace("_", " ").title()} experiment (quick test)'
+                }
+                
+                # Thesis scale version
+                experiments[f'thesis_{exp_name}'] = {
+                    'tasks': exp_config.get('tasks', ['consistency_rating']),
+                    'datasets': exp_config.get('datasets', ['cnn_dailymail', 'xsum']),
+                    'sample_size': sample_sizes.get('thesis_scale', exp_config.get('sample_size', 1000)),
+                    'prompt_types': ['zero_shot', 'chain_of_thought'] if exp_name == 'prompt_comparison' else ['zero_shot'],
+                    'description': f'{exp_name.replace("_", " ").title()} experiment (thesis scale)'
+                }
+        
+        # Add comprehensive experiment
+        experiments['comprehensive_thesis'] = {
+            'tasks': ['entailment_inference', 'summary_ranking', 'consistency_rating'],
+            'datasets': ['cnn_dailymail', 'xsum'],
+            'sample_size': 2000,
+            'prompt_types': ['zero_shot', 'chain_of_thought'],
+            'description': 'Complete thesis experimental suite'
         }
         
         estimates = {}
