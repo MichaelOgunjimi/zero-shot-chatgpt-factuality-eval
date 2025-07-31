@@ -118,8 +118,8 @@ class PromptComparisonExperiment:
         self.tier = tier
         
         # Set up experiment tracking
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        self.experiment_name = experiment_name or f"prompt_comparison_{timestamp}"
+        self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.experiment_name = experiment_name or f"prompt_comparison_{self.timestamp}"
         
         # Use provided output_dir or create default
         if output_dir:
@@ -291,6 +291,12 @@ class PromptComparisonExperiment:
         logging.getLogger("transformers").setLevel(logging.ERROR)
         logging.getLogger("absl").setLevel(logging.ERROR)
         logging.getLogger("torch").setLevel(logging.ERROR)
+        
+        # Prevent duplicate console output from task loggers
+        logging.getLogger("experiment").propagate = False
+        
+        # Set root logger to only show warnings and errors
+        logging.getLogger().setLevel(logging.WARNING)
     
     async def run_prompt_comparison(
         self,
@@ -311,7 +317,6 @@ class PromptComparisonExperiment:
         Returns:
             Comprehensive experiment results
         """
-        self.logger.info("Starting prompt comparison experiment")
         
         # Set defaults
         tasks = tasks or get_supported_tasks()
@@ -342,12 +347,17 @@ class PromptComparisonExperiment:
                     await self._run_task_dataset_comparison(task, dataset, sample_size, trial_id=trial)
         
         # Perform comprehensive analysis
+        print(f"📊 Statistical analysis complete")
         self._perform_statistical_analysis()
+        print(f"💰 Cost analysis complete")
         self._analyze_cost_effectiveness()
+        print(f"🔍 Error analysis complete")
         self._perform_error_analysis()
+        print(f"🔗 Correlation analysis complete")
         self._analyze_performance_correlation()
         
         # Generate visualizations
+        print(f"📈 Visualizations complete")
         self._generate_comprehensive_visualizations()
         
         # Generate tables and reports
@@ -358,9 +368,8 @@ class PromptComparisonExperiment:
         # Save results
         self._save_comprehensive_results()
 
-        # Organize intermediate files
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        self._move_intermediate_files(timestamp)
+        # Organize intermediate files using the original experiment timestamp
+        self._move_intermediate_files(self.timestamp)
         
         print(f"\n✅ Prompt comparison experiment completed")
         print(f"Results saved to: {self.output_dir}")
@@ -390,11 +399,9 @@ class PromptComparisonExperiment:
         else:
             examples = all_examples
         
-        self.logger.info(f"Loaded {len(examples)} processed examples from {dataset} (trial {trial_id})")
-        
         # Run each prompt strategy
         for strategy in self.prompt_strategies:
-            self.logger.info(f"Testing {strategy} prompting strategy")
+            print(f"  🔍 Testing {strategy} prompting strategy")
             
             try:
                 # Create task config with specific prompt strategy
@@ -453,7 +460,6 @@ class PromptComparisonExperiment:
     
     def _perform_statistical_analysis(self) -> None:
         """Perform comprehensive statistical analysis of results."""
-        self.logger.info("Performing statistical analysis")
         
         # Collect all metrics for comparison
         metrics_data = []
@@ -617,7 +623,6 @@ class PromptComparisonExperiment:
     
     def _analyze_cost_effectiveness(self) -> None:
         """Analyze cost-effectiveness of different prompt strategies."""
-        self.logger.info("Analyzing cost-effectiveness")
         
         cost_analysis = {}
         
@@ -687,7 +692,6 @@ class PromptComparisonExperiment:
     
     def _perform_error_analysis(self) -> None:
         """Perform detailed error analysis."""
-        self.logger.info("Performing error analysis")
         
         error_analysis = {}
         
@@ -736,7 +740,6 @@ class PromptComparisonExperiment:
     
     def _analyze_performance_correlation(self) -> None:
         """Analyze correlations between different performance metrics."""
-        self.logger.info("Analyzing performance correlations")
         
         # Collect all metrics for correlation analysis
         metrics_for_correlation = {}
@@ -805,7 +808,6 @@ class PromptComparisonExperiment:
     
     def _generate_comprehensive_visualizations(self) -> None:
         """Generate comprehensive visualizations for thesis."""
-        self.logger.info("Generating comprehensive visualizations")
         
         # Generate different types of plots
         self._plot_performance_comparison()
