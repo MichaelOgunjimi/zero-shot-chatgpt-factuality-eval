@@ -450,6 +450,33 @@ class OpenAIClient:
             self.logger.error(f"API call failed: {e}")
             raise
 
+    def _get_adaptive_max_tokens(self, formatted_prompt: FormattedPrompt) -> int:
+        """Calculate adaptive max_tokens based on prompt type and input length."""
+        base_tokens = self.default_max_tokens
+        
+        # Check if chain-of-thought prompt (needs significantly more space)
+        is_cot = "chain_of_thought" in formatted_prompt.prompt_type.lower() or \
+                 "step by step" in formatted_prompt.prompt_text.lower() or \
+                 "reasoning" in formatted_prompt.prompt_text.lower() or \
+                 "analyze" in formatted_prompt.prompt_text.lower()
+        
+        if is_cot:
+            # Chain-of-thought needs much more tokens for proper reasoning
+            adaptive_tokens = 8192  # Give CoT plenty of space
+        else:
+            # Zero-shot can use fewer tokens
+            adaptive_tokens = min(2048, max(1024, base_tokens))
+        
+        # For very long inputs, ensure we have enough space regardless
+        input_tokens = self.count_tokens(formatted_prompt.prompt_text)
+        if input_tokens > 10000:  # Very long inputs
+            adaptive_tokens = min(adaptive_tokens + 2048, 12288)
+        elif input_tokens > 6000:  # Long inputs  
+            adaptive_tokens = min(adaptive_tokens + 1024, 10240)
+        
+        self.logger.debug(f"Adaptive tokens: {adaptive_tokens} (input: {input_tokens}, CoT: {is_cot})")
+        return adaptive_tokens
+
     async def generate_response(
         self,
         formatted_prompt: FormattedPrompt,
@@ -480,7 +507,7 @@ class OpenAIClient:
         temperature = (
             temperature if temperature is not None else self.default_temperature
         )
-        max_tokens = max_tokens if max_tokens is not None else self.default_max_tokens
+        max_tokens = max_tokens if max_tokens is not None else self._get_adaptive_max_tokens(formatted_prompt)
         model = model or self.primary_model
 
         # Count prompt tokens
@@ -617,7 +644,7 @@ class OpenAIClient:
             if task_type == "entailment_inference":
                 parsed_content = self._parse_entailment_response(content)
             elif task_type == "summary_ranking":
-                parsed_content = self._parse_ranking_response(content)
+                parsed_content = self._parse_ranking_response(content, response.finish_reason)
             elif task_type == "consistency_rating":
                 parsed_content = self._parse_rating_response(content)
             else:
@@ -673,7 +700,7 @@ class OpenAIClient:
 
         return {"prediction": prediction, "answer": answer, "raw_content": content}
 
-    def _parse_ranking_response(self, content: str) -> Dict[str, Any]:
+    def _parse_ranking_response(self, content: str, finish_reason: str = None) -> Dict[str, Any]:
         """Parse summary ranking response."""
         # First check for "FINAL RANKING:" pattern for COT responses
         if "FINAL RANKING:" in content.upper():
@@ -690,54 +717,142 @@ class OpenAIClient:
             for summary_idx, rank in matches:
                 ranking[int(summary_idx) - 1] = int(rank)  # Convert to 0-based indexing
         else:
-            # Try to extract comma-separated or space-separated ranking (most common format)
+            # Enhanced extraction strategy - ChatGPT rarely provides empty responses
             # Clean the content to extract ranking numbers
             content_clean = content.strip()
             
-            # Try different patterns for ranking extraction
+            # Strategy 1: Try explicit ranking patterns first
             ranking_patterns = [
-                r"(?:FINAL RANKING|RANKING|ranking):\s*([0-9,\s]+)",  # "FINAL RANKING: 1, 2, 3"
+                r"(?:FINAL RANKING|RANKING|ranking):\s*([0-9,\s\[\]]+)",  # "FINAL RANKING: 1, 2, 3" or "[1,2,3]"
+                r"(?:FINAL RANKING|RANKING|ranking)[\s:]*([0-9,\s\[\]]+)",  # More flexible spacing
+                r"FINAL RANKING[\s:]*([0-9,\s\[\]]+)",  # More specific "FINAL RANKING: 1, 2, 3"
+                r"\[([0-9,\s]+)\]",  # Just bracketed numbers: "[1, 2, 3]"
+                r"([0-9]+(?:[,\s]+[0-9]+)+)",   # Multiple numbers with separators
                 r"([0-9,\s]+)$",  # Just numbers at end: "1, 2, 3"
-                r"([0-9,\s]+)",   # Any sequence of numbers and commas
             ]
             
             ranking_numbers = None
             for pattern in ranking_patterns:
-                match = re.search(pattern, content_clean, re.IGNORECASE)
-                if match:
-                    ranking_numbers = match.group(1)
+                matches = re.findall(pattern, content_clean, re.IGNORECASE)
+                if matches:
+                    # Take the last match (most likely to be the final answer)
+                    ranking_numbers = matches[-1]
                     break
             
             if ranking_numbers:
-                # Extract individual numbers
+                # Extract individual numbers more robustly
                 numbers = re.findall(r"\d+", ranking_numbers)
                 if numbers:
-                    # Assume sequential order: first number is rank for summary 1, etc.
-                    ranking = {}
-                    for i, rank_str in enumerate(numbers):
-                        ranking[i] = int(rank_str)  # i is 0-based summary index
+                    # Convert to integers and validate range
+                    valid_numbers = []
+                    for num_str in numbers:
+                        num = int(num_str)
+                        if 1 <= num <= 10:  # Reasonable rank range
+                            valid_numbers.append(num)
+                    
+                    if valid_numbers:
+                        # Assume sequential order: first number is rank for summary 1, etc.
+                        ranking = {}
+                        for i, rank in enumerate(valid_numbers):
+                            ranking[i] = rank  # i is 0-based summary index
+                    else:
+                        # Check if response was truncated (common cause of parsing failures)
+                        if finish_reason == 'length':
+                            raise ValueError(f"Response was truncated due to token limit. Consider increasing max_tokens. Content: {content[:100]}...")
+                        else:
+                            # Strategy 2: Look for any valid numbers in the response
+                            all_numbers = re.findall(r"\d+", content)
+                            valid_ranks = [int(n) for n in all_numbers if 1 <= int(n) <= 10]
+                            if valid_ranks:
+                                ranking = {i: rank for i, rank in enumerate(valid_ranks)}
+                            else:
+                                raise ValueError(f"No valid ranking numbers (1-10) found in: {ranking_numbers}")
                 else:
-                    raise ValueError(f"Could not extract ranking numbers from: {ranking_numbers}")
+                    # Check if response was truncated (common cause of parsing failures)
+                    if finish_reason == 'length':
+                        raise ValueError(f"Response was truncated due to token limit. Consider increasing max_tokens. Content: {content[:100]}...")
+                    else:
+                        raise ValueError(f"Could not extract ranking numbers from: {ranking_numbers}")
             else:
-                # Final fallback: try to extract all numbers from content
-                numbers = re.findall(r"\d+", content)
-                if len(numbers) >= 2:
-                    # If we have many numbers, try to guess the ranking
-                    # Look for a sequence that could be ranks
-                    potential_ranks = []
-                    for num in numbers:
+                # Strategy 3: More aggressive fallback - look for ANY ranking-like patterns in the text
+                # Split into lines and look for patterns
+                lines = content.split('\n')
+                found_ranking = False
+                
+                for line in lines:
+                    line = line.strip()
+                    # Look for lines that might contain rankings
+                    if any(keyword in line.lower() for keyword in ['ranking', 'order', 'rank', 'best', 'worst']):
+                        # Extract numbers from this line
+                        line_numbers = re.findall(r"\d+", line)
+                        valid_ranks = [int(n) for n in line_numbers if 1 <= int(n) <= 10]
+                        if len(valid_ranks) >= 2:  # Need at least 2 rankings
+                            ranking = {i: rank for i, rank in enumerate(valid_ranks)}
+                            found_ranking = True
+                            break
+                
+                if not found_ranking:
+                    # Strategy 4: Final fallback - extract all valid numbers and use them as ranking
+                    all_numbers = re.findall(r"\d+", content)
+                    valid_ranks = []
+                    for num in all_numbers:
                         rank = int(num)
                         if 1 <= rank <= 10:  # Reasonable rank range
-                            potential_ranks.append(rank)
+                            valid_ranks.append(rank)
                     
-                    if potential_ranks:
-                        ranking = {}
-                        for i, rank in enumerate(potential_ranks):
-                            ranking[i] = rank
+                    if len(valid_ranks) >= 2:
+                        # Take the last few numbers that could be a ranking
+                        # Remove duplicates while preserving order
+                        seen = set()
+                        unique_ranks = []
+                        for rank in reversed(valid_ranks):
+                            if rank not in seen:
+                                unique_ranks.append(rank)
+                                seen.add(rank)
+                        unique_ranks = list(reversed(unique_ranks))
+                        
+                        if len(unique_ranks) >= 2:
+                            ranking = {i: rank for i, rank in enumerate(unique_ranks)}
+                        else:
+                            # Check if response was truncated
+                            if finish_reason == 'length':
+                                raise ValueError(f"Response was truncated due to token limit. Consider increasing max_tokens. Content: {content[:100]}...")
+                            else:
+                                raise ValueError(f"Could not identify unique ranking from numbers: {valid_ranks}")
                     else:
-                        raise ValueError(f"Could not identify ranking from numbers: {numbers}")
-                else:
-                    raise ValueError(f"Could not parse ranking response: {content}")
+                        # Check if response was truncated
+                        if finish_reason == 'length':
+                            raise ValueError(f"Response was truncated due to token limit. Consider increasing max_tokens. Content: {content[:100]}...")
+                        else:
+                            raise ValueError(f"Could not find sufficient ranking numbers in response. Content: {content[:200]}...")
+
+        # Smart ranking extension logic for partial rankings
+        if ranking:
+            # Assume 3 summaries by default (most common case)
+            expected_count = 3
+            current_count = len(ranking)
+            
+            if current_count < expected_count:
+                # Find missing indices and append them in order
+                provided_ranks = set(ranking.values())
+                all_possible_ranks = set(range(1, expected_count + 1))
+                missing_ranks = sorted(all_possible_ranks - provided_ranks)
+                
+                # Add missing rankings
+                for i in range(current_count, expected_count):
+                    if missing_ranks:
+                        ranking[i] = missing_ranks.pop(0)
+                    else:
+                        # If no more missing ranks, use next available number
+                        ranking[i] = max(provided_ranks) + 1 + (i - current_count)
+            
+            elif current_count > expected_count:
+                # Truncate to expected size
+                truncated_ranking = {}
+                for i in range(expected_count):
+                    if i in ranking:
+                        truncated_ranking[i] = ranking[i]
+                ranking = truncated_ranking
 
         # Convert to ranked list format
         if ranking:
@@ -786,7 +901,12 @@ class OpenAIClient:
                         break
         
         if rating is None:
-            raise ValueError(f"No numeric rating found in response: {content[:200]}...")
+            # Check if response was truncated
+            finish_reason = getattr(self, '_last_finish_reason', None)
+            if finish_reason == 'length':
+                raise ValueError(f"Response was truncated due to token limit. Consider increasing max_tokens. Content: {content[:100]}...")
+            else:
+                raise ValueError(f"No numeric rating found in response: {content[:200]}...")
 
         return {"rating": rating, "raw_content": content}
 
