@@ -383,6 +383,179 @@ Based on preliminary testing and related work:
 
 ### Results from pilot testing on CNN/DailyMail (n=200)
 
+## 🚀 Batch Processing Implementation (NEW)
+
+### ✅ Cost-Effective Large-Scale Evaluation
+
+**NEW: Available on `feature/openai-batch-processing` branch**
+
+The system now includes a comprehensive **OpenAI Batch API integration** for cost-effective large-scale factuality evaluation, providing **50% cost savings** for academic research.
+
+```bash
+# Switch to the batch processing branch
+git checkout feature/openai-batch-processing
+
+# Run cost-optimized batch experiments
+python experiments/batch_processing/batch_run_all_experiments.py --full-suite
+```
+
+### 🎯 Batch Processing Features
+
+#### **🔧 Core Infrastructure**
+
+- **OpenAIBatchClient**: Specialized client for OpenAI Batch API with academic research optimization
+- **BatchManager**: Comprehensive job orchestration, submission, and lifecycle management  
+- **BatchMonitor**: Real-time monitoring, progress tracking, and status reporting
+- **Robust Error Handling**: Exponential backoff, retry mechanisms, and comprehensive logging
+
+#### **💰 Cost Optimization**
+
+```python
+# Batch processing provides significant cost savings
+from src.llm_clients.openai_client_batch import OpenAIBatchClient
+from src.batch import BatchManager
+
+# Initialize batch processing
+batch_client = OpenAIBatchClient(config)  # 50% cost reduction
+batch_manager = BatchManager(batch_client)
+
+# Cost comparison example:
+# Synchronous processing: ~$8.00 for 1000 evaluations
+# Batch processing: ~$4.00 for 1000 evaluations (50% savings)
+```
+
+#### **⚡ Key Benefits**
+
+- **Academic Budget Friendly**: Up to 50% cost savings vs synchronous API calls
+- **Scalable Processing**: Handle thousands of evaluations efficiently with queue management
+- **Thesis-Ready**: Designed specifically for comprehensive academic research requirements
+- **Statistical Rigor**: Maintains all evaluation metrics and significance testing capabilities
+
+### 🧪 Batch Experimental Suite
+
+#### **Complete Batch Experiments**
+
+```bash
+# Individual batch experiments
+python experiments/batch_processing/batch_run_chatgpt_evaluation.py --quick-test
+python experiments/batch_processing/batch_prompt_comparison.py --model gpt-4.1-mini
+python experiments/batch_processing/batch_sota_comparison.py --sample-size 500
+
+# Complete experimental suite with batch processing
+python experiments/batch_processing/batch_run_all_experiments.py --full-suite
+```
+
+#### **Batch Experiment Types**
+
+1. **BatchChatGPTEvaluationExperiment**: Core performance assessment with batch optimization
+2. **BatchPromptComparisonExperiment**: Zero-shot vs Chain-of-Thought comparison
+3. **BatchSOTAComparisonExperiment**: Correlation analysis with traditional metrics
+4. **BatchMasterExperimentRunner**: Orchestrated execution of all experiments
+
+### 📊 Batch Processing Architecture
+
+```text
+src/batch/
+├── 🐍 __init__.py                    # Batch processing package
+├── 🐍 batch_manager.py               # Job orchestration and lifecycle management
+├── 🐍 batch_monitor.py               # Real-time monitoring and progress tracking
+└── 🐍 openai_client_batch.py         # Specialized batch API client
+
+experiments/batch_processing/
+├── 🐍 __init__.py                    # Batch experiments package
+├── 🐍 batch_run_chatgpt_evaluation.py     # Core batch evaluation
+├── 🐍 batch_prompt_comparison.py          # Batch prompt comparison
+├── 🐍 batch_sota_comparison.py            # Batch SOTA comparison
+├── 🐍 batch_run_all_experiments.py        # Master batch experiment runner
+└── 📄 README.md                           # Batch processing documentation
+
+scripts/
+├── 🐍 monitor_batches.py            # Real-time batch monitoring utility
+└── 🐍 process_batch_results.py      # Automated result processing
+```
+
+### 🔍 Real-Time Monitoring
+
+```bash
+# Monitor batch jobs in real-time
+python scripts/monitor_batches.py --refresh-interval 30
+
+# Process completed batch results
+python scripts/process_batch_results.py --experiment-dir results/experiments/batch_processing/
+```
+
+### 💡 Usage Examples
+
+#### **Quick Test with Batch Processing**
+
+```python
+# Quick batch processing test (30 samples)
+from experiments.batch_processing import BatchChatGPTEvaluationExperiment
+
+experiment = BatchChatGPTEvaluationExperiment(
+    model="gpt-4o-mini",  # Cost-optimized
+    tier="tier2"
+)
+
+results = await experiment.run_evaluation(quick_test=True)
+# Estimated cost: ~$0.50 vs ~$1.00 synchronous (50% savings)
+```
+
+#### **Full-Scale Thesis Experiment**
+
+```python
+# Large-scale batch processing for thesis research
+experiment = BatchChatGPTEvaluationExperiment(
+    model="gpt-4.1-mini",  # Balanced performance
+    tier="tier2"
+)
+
+results = await experiment.run_evaluation(
+    tasks=["entailment_inference", "summary_ranking", "consistency_rating"],
+    datasets=["cnn_dailymail", "xsum"], 
+    sample_size=1000
+)
+# Estimated cost: ~$40.00 vs ~$80.00 synchronous (50% savings)
+```
+
+### 📈 Academic Benefits
+
+#### **Research Impact**
+
+- **Budget Optimization**: Enables larger sample sizes within academic budget constraints
+- **Scalable Analysis**: Facilitates comprehensive thesis-level experimental evaluation
+- **Publication Quality**: Maintains statistical rigor while optimizing costs
+- **Reproducible Research**: Complete experimental pipeline with detailed logging
+
+#### **Technical Features**
+
+- **Asynchronous Processing**: Efficient job submission and monitoring
+- **Automatic File Management**: Seamless integration with OpenAI File API
+- **JSON Lines Processing**: Optimized data handling for large-scale evaluation
+- **Comprehensive Analytics**: Real-time cost tracking and progress monitoring
+
+### 🎓 Thesis Integration
+
+The batch processing implementation is specifically designed for academic research:
+
+```bash
+# Thesis-ready experimental pipeline
+python experiments/batch_processing/batch_run_all_experiments.py \
+  --model gpt-4.1-mini \
+  --tier tier2 \
+  --sample-size 1000 \
+  --full-suite \
+  --thesis-mode
+```
+
+**Output includes:**
+
+- Publication-ready statistical analysis
+- Cost-benefit analysis with detailed breakdowns
+- Comprehensive experimental reports
+- LaTeX-formatted tables for thesis inclusion
+- Professional visualizations with academic formatting
+
 ## ⚙️ Dynamic Model Configuration System
 
 ### ✅ Flexible Model Selection with Tier-Based Rate Limits
