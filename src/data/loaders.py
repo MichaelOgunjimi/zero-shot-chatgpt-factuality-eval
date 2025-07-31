@@ -438,6 +438,58 @@ def quick_load_dataset(
     )
 
 
+def load_datasets(
+    dataset_names: List[str],
+    split: str = "test",
+    sample_size: Optional[int] = None,
+    data_dir: Union[str, Path] = "data",
+    use_cache: bool = True,
+    validate_examples: bool = True,
+) -> Dict[str, List[FactualityExample]]:
+    """
+    Load multiple datasets and return as a dictionary.
+    
+    This function provides the interface expected by the batch experiments,
+    loading multiple datasets and returning them in a dictionary format.
+    
+    Args:
+        dataset_names: List of dataset names to load
+        split: Dataset split ("train", "test", "validation")
+        sample_size: Maximum number of examples per dataset (alias for max_examples)
+        data_dir: Directory containing dataset files
+        use_cache: Whether to use cached results
+        validate_examples: Whether to validate loaded examples
+        
+    Returns:
+        Dictionary mapping dataset names to lists of FactualityExample objects
+        
+    Example:
+        >>> datasets = load_datasets(["cnn_dailymail", "xsum"], sample_size=100)
+        >>> cnn_data = datasets["cnn_dailymail"]
+        >>> print(f"Loaded {len(cnn_data)} CNN examples")
+    """
+    results = {}
+    
+    for dataset_name in dataset_names:
+        logger.info(f"Loading dataset: {dataset_name}")
+        try:
+            dataset = quick_load_dataset(
+                dataset_name=dataset_name,
+                split=split,
+                max_examples=sample_size,
+                data_dir=data_dir,
+                use_cache=use_cache,
+                validate_examples=validate_examples
+            )
+            results[dataset_name] = dataset
+            logger.info(f"Successfully loaded {len(dataset)} examples from {dataset_name}")
+        except Exception as e:
+            logger.error(f"Failed to load dataset {dataset_name}: {e}")
+            raise
+            
+    return results
+
+
 def load_processed_dataset(
     dataset_name: str,
     task_type: str,

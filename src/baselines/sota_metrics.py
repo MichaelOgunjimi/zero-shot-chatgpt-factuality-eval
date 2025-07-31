@@ -666,7 +666,7 @@ class ROUGEBaseline(SOTABaseline):
         processing_time = time.time() - start_time
 
         return BaselineResult(
-            baseline_name="rouge",
+            baseline_name=self.baseline_name,
             task_name="summary_ranking",
             example_id=example_id or "unknown",
             prediction=ranking,
@@ -709,7 +709,7 @@ class ROUGEBaseline(SOTABaseline):
         processing_time = time.time() - start_time
 
         return BaselineResult(
-            baseline_name="rouge",
+            baseline_name=self.baseline_name,
             task_name="consistency_rating",
             example_id=example_id or "unknown",
             prediction=consistency_rating,
@@ -1030,7 +1030,10 @@ def create_baseline(baseline_name: str, config: Optional[Dict] = None) -> SOTABa
         available = list(baseline_classes.keys())
         raise ValueError(f"Unknown baseline '{baseline_name}'. Available: {available}")
 
-    return baseline_classes[baseline_name](config)
+    # Create baseline instance and set baseline_name attribute
+    baseline = baseline_classes[baseline_name](config)
+    baseline.baseline_name = baseline_name
+    return baseline
 
 
 def get_available_baselines() -> List[str]:
