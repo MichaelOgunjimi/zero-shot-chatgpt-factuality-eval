@@ -46,6 +46,7 @@ logger = get_logger(__name__)
 
 
 @dataclass
+@dataclass
 class BaselineResult:
     """
     Standardized result format for baseline evaluations.
@@ -105,7 +106,6 @@ class SOTABaseline(ABC):
         self.tokenizer = None
         self._is_initialized = False
 
-        # Initialize logging for this baseline
         self.logger = get_logger(f"{self.__class__.__name__}")
 
     def _setup_device(self, device: Optional[str]) -> str:
@@ -212,7 +212,17 @@ class SOTABaseline(ABC):
             )
         elif task_name == "summary_ranking":
             # For ranking, we need multiple summaries
-            summaries = getattr(example, "summaries", [example.summary])
+            summaries = getattr(example, "summaries", None)
+            if summaries is None or not summaries:
+                # If no summaries list, use single summary as list
+                summaries = [example.summary] if example.summary is not None else []
+            
+            # Filter out None values
+            summaries = [s for s in summaries if s is not None]
+            
+            if not summaries:
+                raise ValueError(f"No valid summaries found for ranking in example {example.example_id}")
+            
             return self.evaluate_summary_ranking(
                 example.source, summaries, example.example_id
             )
@@ -222,6 +232,95 @@ class SOTABaseline(ABC):
             )
         else:
             raise ValueError(f"Unknown task: {task_name}")
+
+    def evaluate_dataset(
+        self, examples: List[FactualityExample], task_name: str
+    ) -> Dict[str, Any]:
+        """
+        Evaluate a dataset of examples for the specified task.
+
+        Args:
+            examples: List of data examples to evaluate
+            task_name: Name of the factuality task
+
+        Returns:
+            Dictionary with evaluation results and metrics
+
+        Raises:
+            ValueError: If task is not supported
+        """
+        if not self.supports_task(task_name):
+            raise ValueError(
+                f"{self.__class__.__name__} does not support task: {task_name}"
+            )
+
+        if not examples:
+            return {
+                'predictions': [],
+                'scores': [],
+                'average_score': 0.0,
+                'total_examples': 0,
+                'successful_examples': 0,
+                'failed_examples': 0,
+                'error_rate': 0.0
+            }
+
+        predictions = []
+        scores = []
+        failed_count = 0
+
+        self.logger.info(f"Evaluating {len(examples)} examples with {self.__class__.__name__} for task {task_name}")
+
+        for i, example in enumerate(examples):
+            try:
+                result = self.evaluate_example(example, task_name)
+                predictions.append(result.prediction)
+                
+                # Convert prediction to score based on task type
+                if task_name == "entailment_inference":
+                    # For binary classification, use prediction as score (0 or 1)
+                    score = float(result.prediction) if result.prediction is not None else 0.0
+                elif task_name == "consistency_rating":
+                    # For rating, prediction is already the score (0-100)
+                    score = float(result.prediction) if result.prediction is not None else 0.0
+                elif task_name == "summary_ranking":
+                    # For ranking, use confidence as score
+                    score = result.confidence if result.confidence is not None else 0.0
+                else:
+                    score = result.confidence if result.confidence is not None else 0.0
+                
+                scores.append(score)
+                
+                if (i + 1) % 10 == 0 or (i + 1) == len(examples):
+                    self.logger.info(f"Processed {i + 1}/{len(examples)} examples")
+                    
+            except Exception as e:
+                self.logger.warning(f"Failed to evaluate example {example.example_id}: {e}")
+                failed_count += 1
+                predictions.append(None)
+                scores.append(0.0)
+
+        # Calculate metrics
+        valid_scores = [s for s in scores if s is not None]
+        average_score = sum(valid_scores) / len(valid_scores) if valid_scores else 0.0
+        successful_examples = len(examples) - failed_count
+        error_rate = failed_count / len(examples) if examples else 0.0
+
+        results = {
+            'predictions': predictions,
+            'scores': scores,
+            'average_score': average_score,
+            'total_examples': len(examples),
+            'successful_examples': successful_examples,
+            'failed_examples': failed_count,
+            'error_rate': error_rate,
+            'baseline_name': self.__class__.__name__,
+            'task_name': task_name
+        }
+
+        self.logger.info(f"Baseline evaluation completed: {successful_examples}/{len(examples)} successful, average score: {average_score:.3f}")
+
+        return results
 
 
 class FactCCBaseline(SOTABaseline):
@@ -319,7 +418,6 @@ class FactCCBaseline(SOTABaseline):
         """Evaluate entailment inference using FactCC."""
         import time
 
-        # Initialize if not already done
         if not self._is_initialized:
             self.initialize()
 
@@ -355,7 +453,6 @@ class FactCCBaseline(SOTABaseline):
         """Evaluate consistency rating using FactCC probability."""
         import time
 
-        # Initialize if not already done
         if not self._is_initialized:
             self.initialize()
 
@@ -491,6 +588,13 @@ class BERTScoreBaseline(SOTABaseline):
         import time
 
         start_time = time.time()
+
+        # Validate inputs
+        if not summaries:
+            raise ValueError(f"No summaries provided for ranking (example_id: {example_id})")
+        
+        if any(s is None for s in summaries):
+            raise ValueError(f"Found None values in summaries list (example_id: {example_id})")
 
         # Compute BERTScore for each summary against source
         f1_scores = []
@@ -693,7 +797,6 @@ class ROUGEBaseline(SOTABaseline):
         """Rate consistency using ROUGE scores."""
         import time
 
-        # Initialize if not already done
         if not self._is_initialized:
             self.initialize()
 
@@ -781,7 +884,6 @@ class BaselineComparator:
         self, chatgpt_results: List[Dict], baseline_results: List[BaselineResult]
     ) -> List[Tuple[Dict, BaselineResult]]:
         """Align ChatGPT and baseline results by example ID."""
-        # Create lookup for baseline results
         baseline_lookup = {br.example_id: br for br in baseline_results}
 
         aligned = []
@@ -1051,7 +1153,6 @@ def adapt_data_for_baseline(
     Returns:
         Adapted examples suitable for baseline evaluation
     """
-    # For now, return examples as-is
     # Could add task-specific data preprocessing in the future
     return examples
 
@@ -1081,7 +1182,6 @@ def compare_with_chatgpt(
         comparison = comparator.compare_predictions(chatgpt_results, results, task_name)
         all_comparisons[baseline_name] = comparison
 
-    # Add summary statistics
     all_comparisons["summary"] = {
         "task_name": task_name,
         "num_baselines": len(baseline_results),
@@ -1119,7 +1219,6 @@ def generate_baseline_report(
         "detailed_results": comparison_results,
     }
 
-    # Extract key findings for each baseline
     for baseline_name, results in comparison_results.items():
         if baseline_name == "summary":
             continue
@@ -1162,7 +1261,6 @@ def generate_baseline_report(
 
         report["key_findings"].append(finding)
 
-    # Save report if path specified
     if output_path:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)

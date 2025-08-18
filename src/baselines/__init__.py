@@ -105,7 +105,6 @@ def evaluate_baseline_on_examples(baseline_name, examples, task_name, config=Non
     from ..utils.logging import get_logger
     logger = get_logger(__name__)
 
-    # Create baseline instance
     baseline = create_baseline(baseline_name, config)
 
     # Adapt data if needed
