@@ -41,7 +41,6 @@ MODEL_PRICING = {
     "gpt-4o": {"input": 0.0025, "output": 0.01}
 }
 
-# Default fallback models for each primary model
 DEFAULT_FALLBACKS = {
     "gpt-4.1-mini": ["gpt-4o-mini", "o1-mini"],
     "gpt-4o-mini": ["gpt-4.1-mini", "o1-mini"],

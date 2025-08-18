@@ -84,17 +84,14 @@ class AcademicFormatter(logging.Formatter):
 
     def format(self, record) -> str:
         """Format with academic styling."""
-        # Add experiment context if available
         if hasattr(record, 'experiment_name') and record.experiment_name:
             record.name = f"{record.name}[{record.experiment_name}]"
 
         formatted = super().format(record)
 
-        # Add cost information if available
         if hasattr(record, 'cost') and record.cost:
             formatted += f" | Cost: ${record.cost:.4f}"
 
-        # Add duration if available
         if hasattr(record, 'duration') and record.duration:
             formatted += f" | Duration: {record.duration:.2f}s"
 
@@ -115,7 +112,8 @@ class ProgressTracker:
         description: str = "Processing",
         experiment_name: Optional[str] = None,
         show_cost: bool = True,
-        update_frequency: int = 10
+        update_frequency: int = 10,
+        disable: bool = False
     ):
         """
         Initialize progress tracker.
@@ -126,12 +124,14 @@ class ProgressTracker:
             experiment_name: Name of the experiment
             show_cost: Whether to show cost information
             update_frequency: How often to update progress (every N items)
+            disable: Whether to disable the visual progress bar
         """
         self.total = total
         self.description = description
         self.experiment_name = experiment_name
         self.show_cost = show_cost
         self.update_frequency = update_frequency
+        self.disable = disable
 
         # Progress tracking
         self.current = 0
@@ -140,13 +140,17 @@ class ProgressTracker:
         self.costs = []
         self.durations = []
 
-        # Setup progress bar
-        self.pbar = tqdm(
-            total=total,
-            desc=description,
-            unit="items",
-            bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
-        )
+        # Setup progress bar only if not disabled
+        if not disable:
+            self.pbar = tqdm(
+                total=total,
+                desc=description,
+                unit="items",
+                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
+                leave=True
+            )
+        else:
+            self.pbar = None
 
         # Setup logger
         self.logger = get_logger(f"progress.{experiment_name or 'default'}")
@@ -169,17 +173,16 @@ class ProgressTracker:
             self.costs.append(cost)
         self.durations.append(duration)
 
-        # Update progress bar
-        self.pbar.update(1)
+        if self.pbar is not None:
+            self.pbar.update(1)
 
-        # Add cost to progress bar if available
-        if self.show_cost and self.costs:
-            total_cost = sum(self.costs)
-            avg_cost = total_cost / len(self.costs)
-            self.pbar.set_postfix({
-                'Total Cost': f"${total_cost:.4f}",
-                'Avg Cost': f"${avg_cost:.4f}"
-            })
+            if self.show_cost and self.costs:
+                total_cost = sum(self.costs)
+                avg_cost = total_cost / len(self.costs)
+                self.pbar.set_postfix({
+                    'Total Cost': f"${total_cost:.4f}",
+                    'Avg Cost': f"${avg_cost:.4f}"
+                })
 
         # Log progress at intervals
         if self.current % self.update_frequency == 0 or self.current == self.total:
@@ -236,7 +239,10 @@ class ProgressTracker:
         Returns:
             Summary statistics
         """
-        self.pbar.close()
+        # Close progress bar cleanly if it exists
+        if self.pbar is not None:
+            self.pbar.close()
+        
         total_time = time.time() - self.start_time
 
         summary = {
@@ -250,7 +256,7 @@ class ProgressTracker:
             'completed_at': datetime.now().isoformat()
         }
 
-        self.logger.info(f"Progress tracking completed: {self.description}", extra=summary)
+        self.logger.info(f"Progress tracking completed: {self.description}")
         return summary
 
 
@@ -480,7 +486,6 @@ class ExperimentLogger:
 
     def _setup_loggers(self) -> None:
         """Setup structured and console loggers."""
-        # Main experiment logger
         self.logger = logging.getLogger(f"experiment.{self.experiment_name}")
         self.logger.setLevel(logging.INFO)
 
@@ -577,7 +582,6 @@ class ExperimentLogger:
             metadata=metadata
         )
 
-        # Add to task costs
         if task_name:
             self.task_costs[task_name] = self.task_costs.get(task_name, 0.0) + cost
 

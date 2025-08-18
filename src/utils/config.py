@@ -35,7 +35,6 @@ except ImportError:
     merge_model_config = None
     logger.warning("Model configuration manager not available")
 
-# Import PyTorch with fallback
 try:
     import torch
 except ImportError:
@@ -74,7 +73,6 @@ class ConfigWrapper:
         if '.' not in key:
             return self._config.get(key, default)
 
-        # Handle dot notation
         keys = key.split('.')
         value = self._config
 
@@ -100,7 +98,6 @@ class ConfigWrapper:
             self._config[key] = value
             return
 
-        # Handle dot notation
         keys = key.split('.')
         config = self._config
 
@@ -110,7 +107,6 @@ class ConfigWrapper:
                 config[k] = {}
             config = config[k]
 
-        # Set the final value
         config[keys[-1]] = value
 
     def update(self, updates: Dict[str, Any]) -> None:
@@ -337,7 +333,6 @@ class ConfigManager:
 
     def _setup_environment(self) -> None:
         """Setup environment variables."""
-        # Set basic environment variables
         if "project" in self.config:
             os.environ["PROJECT_NAME"] = self.config.get("project.name", "chatgpt_factuality_eval")
 
@@ -505,7 +500,6 @@ def set_global_seed(seed: Optional[int] = None) -> int:
         except:
             seed = 42
 
-    # Set all random seeds
     random.seed(seed)
     np.random.seed(seed)
     
@@ -513,11 +507,9 @@ def set_global_seed(seed: Optional[int] = None) -> int:
         torch.manual_seed(seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
-        # Set deterministic behavior
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    # Set tokenizers parallelism for consistency
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     logger.info(f"Global seed set to: {seed}")
@@ -543,7 +535,6 @@ def create_output_directories(config: Optional[ConfigWrapper] = None) -> Dict[st
         "cache": Path(config.get("paths.cache_dir", "./cache"))
     }
 
-    # Create all directories
     for name, path in base_dirs.items():
         path.mkdir(parents=True, exist_ok=True)
         logger.debug(f"Created directory {name}: {path}")
@@ -566,7 +557,6 @@ def validate_api_keys(config: Optional[ConfigWrapper] = None) -> Dict[str, bool]
 
     api_status = {}
 
-    # Check OpenAI API key
     openai_key = os.getenv("OPENAI_API_KEY")
     api_status["openai"] = bool(openai_key and openai_key.startswith("sk-"))
 
@@ -593,16 +583,13 @@ def setup_reproducibility(config: Optional[ConfigWrapper] = None) -> Dict[str, A
     if config is None:
         config = get_config()
 
-    # Set global seed
     seed = set_global_seed(config.get("global.seed"))
 
-    # Create output directories
     output_dirs = create_output_directories(config)
 
     # Validate API keys
     api_status = validate_api_keys(config)
 
-    # Get device
     device = get_device(config.get("global.device"))
 
     settings = {

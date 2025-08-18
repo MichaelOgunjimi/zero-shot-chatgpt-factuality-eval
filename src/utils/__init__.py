@@ -57,7 +57,6 @@ from .visualization import (
     BASELINE_COLORS,
 )
 
-# All public exports - matching actual implementation
 __all__ = [
     # Configuration Management
     "ConfigManager",
@@ -169,7 +168,6 @@ def validate_environment() -> dict:
         "errors": []
     }
 
-    # Check critical environment variables
     critical_env_vars = ["OPENAI_API_KEY"]
     for var in critical_env_vars:
         value = os.getenv(var)
@@ -180,7 +178,6 @@ def validate_environment() -> dict:
         if not value:
             validation_results["errors"].append(f"Missing required environment variable: {var}")
 
-    # Check optional environment variables
     optional_env_vars = ["TORCH_DEVICE", "PROJECT_NAME", "LOG_LEVEL"]
     for var in optional_env_vars:
         value = os.getenv(var)
@@ -191,11 +188,9 @@ def validate_environment() -> dict:
         if not value:
             validation_results["warnings"].append(f"Optional environment variable not set: {var}")
 
-    # Check Python version
     if sys.version_info < (3, 8):
         validation_results["errors"].append(f"Python 3.8+ required, found {sys.version}")
 
-    # Check for required directories
     required_dirs = ["data", "results", "logs", "config"]
     for dir_name in required_dirs:
         dir_path = Path(dir_name)
@@ -229,7 +224,6 @@ try:
 except Exception as e:
     logger.warning(f"Could not validate requirements: {e}")
 
-# Set up basic logging if not already configured
 try:
     setup_basic_logging({"logging": {"level": "INFO"}})
 except Exception:

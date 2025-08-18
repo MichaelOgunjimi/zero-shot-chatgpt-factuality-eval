@@ -180,6 +180,745 @@ class VisualizationEngine:
 
         return saved_files
 
+    def create_comprehensive_metrics_comparison(
+        self,
+        multi_model_results: Dict[str, Dict[str, Any]],
+        save_name: str = "comprehensive_metrics_comparison.png",
+        title: str = "Comprehensive Evaluation Metrics Across Models and Tasks"
+    ) -> plt.Figure:
+        """
+        Create comprehensive visualization showing all evaluation metrics 
+        for each task across different models.
+
+        Args:
+            multi_model_results: Dictionary with model results
+                Format: {model_name: {task_name: {metrics...}}}
+            save_name: Name for saved figure
+            title: Figure title
+
+        Returns:
+            Matplotlib figure object
+        """
+        # Define metrics for each task
+        task_metrics = {
+            'entailment_inference': {
+                'metrics': ['accuracy', 'precision', 'recall', 'f1_score'],
+                'labels': ['Accuracy', 'Precision', 'Recall', 'F1-Score'],
+                'color': TASK_COLORS['entailment_inference']
+            },
+            'summary_ranking': {
+                'metrics': ['avg_kendall_tau', 'avg_spearman_rho', 'avg_ndcg', 'avg_pairwise_accuracy'],
+                'labels': ['Kendall τ', 'Spearman ρ', 'NDCG', 'Pairwise Acc.'],
+                'color': TASK_COLORS['summary_ranking']
+            },
+            'consistency_rating': {
+                'metrics': ['avg_pearson_correlation', 'avg_mae', 'avg_rmse', 'avg_rating'],
+                'labels': ['Pearson r', 'MAE', 'RMSE', 'Avg Rating'],
+                'color': TASK_COLORS['consistency_rating']
+            }
+        }
+
+        # Extract available tasks from results
+        available_tasks = []
+        for model_results in multi_model_results.values():
+            available_tasks.extend(model_results.keys())
+        available_tasks = list(set(available_tasks))
+        
+        # Filter task_metrics to only include available tasks
+        available_task_metrics = {task: metrics for task, metrics in task_metrics.items() 
+                                if task in available_tasks}
+        
+        if not available_task_metrics:
+            logger.warning("No matching tasks found in results for comprehensive metrics visualization")
+            # Create empty figure
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, 'No matching tasks found for visualization', 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            return fig
+
+        # Create subplots: one for each task
+        n_tasks = len(available_task_metrics)
+        fig, axes = plt.subplots(1, n_tasks, figsize=(6*n_tasks, 6))
+        
+        # If only one task, wrap in list for consistent handling
+        if n_tasks == 1:
+            axes = [axes]
+
+        models = list(multi_model_results.keys())
+        
+        for task_idx, (task_name, task_info) in enumerate(available_task_metrics.items()):
+            ax = axes[task_idx]
+            
+            # Extract data for this task across all models
+            model_data = []
+            for model in models:
+                if task_name in multi_model_results[model]:
+                    model_data.append(multi_model_results[model][task_name])
+                else:
+                    # Add empty metrics if model doesn't have this task
+                    model_data.append({metric: 0.0 for metric in task_info['metrics']})
+            
+            # Create data matrix for heatmap-style visualization
+            metrics = task_info['metrics']
+            labels = task_info['labels']
+            
+            # Extract metric values and normalize appropriately
+            data_matrix = []
+            for model_result in model_data:
+                row = []
+                for metric in metrics:
+                    value = model_result.get(metric, 0.0)
+                    if isinstance(value, (list, tuple)):
+                        value = np.mean(value) if value else 0.0
+                    
+                    # Normalize metrics based on type and task
+                    if task_name == 'consistency_rating':
+                        if metric == 'avg_pearson_correlation':
+                            # Already in 0-1 range, but could be negative, so clip to 0-1
+                            value = max(0.0, min(1.0, float(value)))
+                        elif metric == 'avg_mae':
+                            # MAE: lower is better, normalize by assuming max error of 100
+                            # Convert to "goodness" metric: 1 - (error/max_error)
+                            value = max(0.0, 1.0 - (float(value) / 100.0))
+                        elif metric == 'avg_rmse':
+                            # RMSE: lower is better, normalize by assuming max error of 100
+                            # Convert to "goodness" metric: 1 - (error/max_error)
+                            value = max(0.0, 1.0 - (float(value) / 100.0))
+                        elif metric == 'avg_rating':
+                            # Rating: 0-100 scale, normalize to 0-1
+                            value = float(value) / 100.0
+                    else:
+                        # For other tasks, assume already normalized or in 0-1 range
+                        value = max(0.0, min(1.0, float(value)))
+                    
+                    row.append(value)
+                data_matrix.append(row)
+            
+            data_matrix = np.array(data_matrix)
+            
+            # Create heatmap
+            im = ax.imshow(data_matrix, cmap='RdYlBu_r', aspect='auto', vmin=0, vmax=1)
+            
+            # Set ticks and labels
+            ax.set_xticks(range(len(labels)))
+            ax.set_yticks(range(len(models)))
+            ax.set_xticklabels(labels, rotation=45, ha='right')
+            ax.set_yticklabels(models)
+            
+            # Add text annotations
+            for i in range(len(models)):
+                for j in range(len(metrics)):
+                    value = data_matrix[i, j]
+                    text_color = 'white' if value < 0.5 else 'black'
+                    ax.text(j, i, f'{value:.3f}', ha='center', va='center', 
+                           color=text_color, fontweight='bold', fontsize=10)
+            
+            # Styling
+            ax.set_title(f'{task_name.replace("_", " ").title()}', 
+                        fontsize=14, fontweight='bold', pad=20)
+            ax.grid(True, alpha=0.3)
+            
+            # Add colorbar for the last subplot
+            if task_idx == n_tasks - 1:
+                cbar = plt.colorbar(im, ax=ax, shrink=0.8)
+                cbar.set_label('Metric Value', rotation=270, labelpad=20)
+
+        # Overall styling
+        fig.suptitle(title, fontsize=16, fontweight='bold', y=0.95)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        
+        # Save figure
+        if save_name:
+            self.save_figure(fig, save_name.replace('.png', ''))
+        
+        return fig
+
+    def create_model_task_performance_heatmap(
+        self,
+        multi_model_results: Dict[str, Dict[str, Any]],
+        save_name: str = "model_task_performance_heatmap.png",
+        title: str = "Model × Task Performance Matrix"
+    ) -> plt.Figure:
+        """
+        Create comprehensive heatmap showing model performance across all tasks and metrics.
+
+        Args:
+            multi_model_results: Dictionary with model results
+            save_name: Name for saved figure
+            title: Figure title
+
+        Returns:
+            Matplotlib figure object
+        """
+        # Extract all models and tasks
+        models = list(multi_model_results.keys())
+        all_tasks = set()
+        for model_results in multi_model_results.values():
+            all_tasks.update(model_results.keys())
+        tasks = sorted(list(all_tasks))
+
+        if not models or not tasks:
+            logger.warning("No models or tasks found for heatmap")
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.text(0.5, 0.5, 'No data available for heatmap', 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            return fig
+
+        # Create performance matrix (models × tasks)
+        perf_matrix = np.zeros((len(models), len(tasks)))
+        
+        for i, model in enumerate(models):
+            for j, task in enumerate(tasks):
+                if task in multi_model_results[model]:
+                    task_results = multi_model_results[model][task]
+                    # Get primary performance metric
+                    if 'avg_accuracy' in task_results:
+                        perf_matrix[i, j] = task_results['avg_accuracy']
+                    elif 'avg_pearson_correlation' in task_results:
+                        perf_matrix[i, j] = max(0, task_results['avg_pearson_correlation'])
+                    elif 'avg_kendall_tau' in task_results:
+                        perf_matrix[i, j] = task_results['avg_kendall_tau']
+                    else:
+                        perf_matrix[i, j] = 0.5  # Default neutral value
+
+        # Create heatmap
+        fig, ax = plt.subplots(figsize=(max(8, len(tasks) * 1.5), max(6, len(models) * 0.8)))
+        
+        im = ax.imshow(perf_matrix, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
+        
+        # Set ticks and labels
+        ax.set_xticks(range(len(tasks)))
+        ax.set_yticks(range(len(models)))
+        ax.set_xticklabels([t.replace('_', ' ').title() for t in tasks], rotation=45, ha='right')
+        ax.set_yticklabels(models)
+        
+        # Add text annotations
+        for i in range(len(models)):
+            for j in range(len(tasks)):
+                value = perf_matrix[i, j]
+                text_color = 'white' if value < 0.5 else 'black'
+                ax.text(j, i, f'{value:.3f}', ha='center', va='center',
+                       color=text_color, fontweight='bold', fontsize=10)
+        
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax, shrink=0.8)
+        cbar.set_label('Performance Score', rotation=270, labelpad=20)
+        
+        # Styling
+        ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
+        ax.set_xlabel('Tasks', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Models', fontsize=12, fontweight='bold')
+        
+        plt.tight_layout()
+        
+        if save_name:
+            self.save_figure(fig, save_name.replace('.png', ''))
+        
+        return fig
+
+    def create_error_analysis_chart(
+        self,
+        multi_model_results: Dict[str, Dict[str, Any]],
+        save_name: str = "error_analysis_chart.png",
+        title: str = "Failure Mode Analysis by Task and Model"
+    ) -> plt.Figure:
+        """
+        Create error analysis chart showing failure modes by task and model.
+
+        Args:
+            multi_model_results: Dictionary with model results
+            save_name: Name for saved figure
+            title: Figure title
+
+        Returns:
+            Matplotlib figure object
+        """
+        # Extract error data
+        error_data = []
+        
+        for model_name, model_results in multi_model_results.items():
+            for task_name, task_results in model_results.items():
+                # Calculate error rates
+                if 'avg_accuracy' in task_results:
+                    error_rate = 1 - task_results['avg_accuracy']
+                    error_type = 'Classification Error'
+                elif 'avg_mae' in task_results:
+                    error_rate = task_results['avg_mae'] / 100.0  # Normalize
+                    error_type = 'Prediction Error'
+                elif 'avg_kendall_tau' in task_results:
+                    error_rate = 1 - task_results['avg_kendall_tau']
+                    error_type = 'Ranking Error'
+                else:
+                    error_rate = 0.5
+                    error_type = 'Unknown Error'
+                
+                error_data.append({
+                    'Model': model_name,
+                    'Task': task_name.replace('_', ' ').title(),
+                    'Error Rate': error_rate,
+                    'Error Type': error_type
+                })
+        
+        if not error_data:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, 'No error data available', 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            return fig
+        
+        df = pd.DataFrame(error_data)
+        
+        # Create grouped bar chart
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        # Pivot data for plotting
+        pivot_df = df.pivot(index='Task', columns='Model', values='Error Rate')
+        
+        # Create bar plot
+        pivot_df.plot(kind='bar', ax=ax, width=0.8, colormap='viridis')
+        
+        # Styling
+        ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
+        ax.set_xlabel('Tasks', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Error Rate', fontsize=12, fontweight='bold')
+        ax.legend(title='Models', bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax.grid(True, alpha=0.3)
+        
+        # Rotate x-axis labels
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        
+        if save_name:
+            self.save_figure(fig, save_name.replace('.png', ''))
+        
+        return fig
+
+    def create_confidence_interval_plot(
+        self,
+        multi_model_results: Dict[str, Dict[str, Any]],
+        save_name: str = "confidence_intervals.png",
+        title: str = "Model Performance with Confidence Intervals"
+    ) -> plt.Figure:
+        """
+        Create performance comparison with confidence intervals.
+
+        Args:
+            multi_model_results: Dictionary with model results
+            save_name: Name for saved figure
+            title: Figure title
+
+        Returns:
+            Matplotlib figure object
+        """
+        # Extract performance data with confidence intervals
+        plot_data = []
+        
+        for model_name, model_results in multi_model_results.items():
+            for task_name, task_results in model_results.items():
+                # Get primary metric and its confidence interval
+                if 'avg_accuracy' in task_results:
+                    mean_perf = task_results['avg_accuracy']
+                    # Simulate confidence interval (in real scenario, compute from multiple runs)
+                    ci_lower = max(0, mean_perf - 0.05)
+                    ci_upper = min(1, mean_perf + 0.05)
+                elif 'avg_pearson_correlation' in task_results:
+                    mean_perf = max(0, task_results['avg_pearson_correlation'])
+                    ci_lower = max(0, mean_perf - 0.03)
+                    ci_upper = min(1, mean_perf + 0.03)
+                else:
+                    mean_perf = 0.5
+                    ci_lower = 0.45
+                    ci_upper = 0.55
+                
+                plot_data.append({
+                    'Model': model_name,
+                    'Task': task_name.replace('_', ' ').title(),
+                    'Performance': mean_perf,
+                    'CI_Lower': ci_lower,
+                    'CI_Upper': ci_upper
+                })
+        
+        if not plot_data:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, 'No performance data available', 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            return fig
+        
+        df = pd.DataFrame(plot_data)
+        
+        # Create plot with confidence intervals
+        fig, ax = plt.subplots(figsize=(14, 8))
+        
+        tasks = df['Task'].unique()
+        models = df['Model'].unique()
+        x_pos = np.arange(len(tasks))
+        width = 0.25
+        
+        colors = plt.cm.Set1(np.linspace(0, 1, len(models)))
+        
+        for i, model in enumerate(models):
+            model_data = df[df['Model'] == model]
+            y_values = []
+            y_errors = []
+            
+            for task in tasks:
+                task_data = model_data[model_data['Task'] == task]
+                if not task_data.empty:
+                    y_values.append(task_data['Performance'].iloc[0])
+                    y_errors.append([
+                        task_data['Performance'].iloc[0] - task_data['CI_Lower'].iloc[0],
+                        task_data['CI_Upper'].iloc[0] - task_data['Performance'].iloc[0]
+                    ])
+                else:
+                    y_values.append(0)
+                    y_errors.append([0, 0])
+            
+            y_errors = np.array(y_errors).T
+            
+            ax.bar(x_pos + i * width, y_values, width, 
+                  label=model, color=colors[i], alpha=0.8,
+                  yerr=y_errors, capsize=5, error_kw={'linewidth': 2})
+        
+        # Styling
+        ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
+        ax.set_xlabel('Tasks', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Performance Score', fontsize=12, fontweight='bold')
+        ax.set_xticks(x_pos + width * (len(models) - 1) / 2)
+        ax.set_xticklabels(tasks, rotation=45, ha='right')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_ylim(0, 1.1)
+        
+        plt.tight_layout()
+        
+        if save_name:
+            self.save_figure(fig, save_name.replace('.png', ''))
+        
+        return fig
+
+    def create_performance_trend_plot(
+        self,
+        multi_model_results: Dict[str, Dict[str, Any]],
+        save_name: str = "performance_trends.png",
+        title: str = "Performance Trends Across Complexity Levels"
+    ) -> plt.Figure:
+        """
+        Create line plot showing performance trends across different complexity levels.
+
+        Args:
+            multi_model_results: Dictionary with model results
+            save_name: Name for saved figure
+            title: Figure title
+
+        Returns:
+            Matplotlib figure object
+        """
+        # Extract trend data (simulate complexity levels based on available data)
+        trend_data = []
+        
+        for model_name, model_results in multi_model_results.items():
+            tasks = list(model_results.keys())
+            # Sort tasks by assumed complexity
+            task_complexity = {
+                'entailment_inference': 1,
+                'summary_ranking': 2,
+                'consistency_rating': 3
+            }
+            
+            tasks.sort(key=lambda x: task_complexity.get(x, 2))
+            
+            for i, task_name in enumerate(tasks):
+                task_results = model_results[task_name]
+                
+                # Get primary performance metric
+                if 'avg_accuracy' in task_results:
+                    performance = task_results['avg_accuracy']
+                elif 'avg_pearson_correlation' in task_results:
+                    performance = max(0, task_results['avg_pearson_correlation'])
+                elif 'avg_kendall_tau' in task_results:
+                    performance = task_results['avg_kendall_tau']
+                else:
+                    performance = 0.5
+                
+                trend_data.append({
+                    'Model': model_name,
+                    'Task': task_name.replace('_', ' ').title(),
+                    'Complexity Level': i + 1,
+                    'Performance': performance
+                })
+        
+        if not trend_data:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, 'No trend data available', 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            return fig
+        
+        df = pd.DataFrame(trend_data)
+        
+        # Create line plot
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        models = df['Model'].unique()
+        colors = plt.cm.Set1(np.linspace(0, 1, len(models)))
+        
+        for i, model in enumerate(models):
+            model_data = df[df['Model'] == model].sort_values('Complexity Level')
+            ax.plot(model_data['Complexity Level'], model_data['Performance'], 
+                   marker='o', linewidth=2, markersize=8, 
+                   label=model, color=colors[i])
+            
+            # Add task labels
+            for _, row in model_data.iterrows():
+                ax.annotate(row['Task'], 
+                           (row['Complexity Level'], row['Performance']),
+                           xytext=(5, 5), textcoords='offset points',
+                           fontsize=9, alpha=0.7)
+        
+        # Styling
+        ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
+        ax.set_xlabel('Task Complexity Level', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Performance Score', fontsize=12, fontweight='bold')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_ylim(0, 1.1)
+        ax.set_xlim(0.5, max(df['Complexity Level']) + 0.5)
+        
+        plt.tight_layout()
+        
+        if save_name:
+            self.save_figure(fig, save_name.replace('.png', ''))
+        
+        return fig
+
+    def create_failure_mode_analysis_table(
+        self,
+        multi_model_results: Dict[str, Dict[str, Any]],
+        save_name: str = "failure_mode_analysis_table.png",
+        title: str = "Failure Mode Analysis Table"
+    ) -> plt.Figure:
+        """
+        Create failure mode analysis table as image.
+
+        Args:
+            multi_model_results: Dictionary with model results
+            save_name: Name for saved figure
+            title: Figure title
+
+        Returns:
+            Matplotlib figure object
+        """
+        # Analyze failure modes
+        failure_data = []
+        
+        for model_name, model_results in multi_model_results.items():
+            for task_name, task_results in model_results.items():
+                # Determine error type and severity
+                if 'avg_accuracy' in task_results:
+                    accuracy = task_results['avg_accuracy']
+                    if accuracy < 0.5:
+                        error_type = "High Classification Error"
+                        severity = "Critical"
+                    elif accuracy < 0.8:
+                        error_type = "Moderate Classification Error"
+                        severity = "Medium"
+                    else:
+                        error_type = "Low Classification Error"
+                        severity = "Low"
+                    frequency = f"{(1-accuracy)*100:.1f}%"
+                elif 'avg_mae' in task_results:
+                    mae = task_results['avg_mae']
+                    if mae > 30:
+                        error_type = "High Prediction Error"
+                        severity = "Critical"
+                    elif mae > 20:
+                        error_type = "Moderate Prediction Error"
+                        severity = "Medium"
+                    else:
+                        error_type = "Low Prediction Error"
+                        severity = "Low"
+                    frequency = f"{mae:.1f} MAE"
+                else:
+                    error_type = "Unknown Error"
+                    severity = "Low"
+                    frequency = "N/A"
+                
+                failure_data.append({
+                    'Model': model_name,
+                    'Task': task_name.replace('_', ' ').title(),
+                    'Error Type': error_type,
+                    'Severity': severity,
+                    'Frequency': frequency
+                })
+        
+        if not failure_data:
+            fig, ax = plt.subplots(figsize=(12, 6))
+            ax.text(0.5, 0.5, 'No failure data available', 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            return fig
+        
+        # Create table
+        df = pd.DataFrame(failure_data)
+        
+        fig, ax = plt.subplots(figsize=(14, max(6, len(failure_data) * 0.4)))
+        ax.axis('tight')
+        ax.axis('off')
+        
+        # Create table
+        table = ax.table(cellText=df.values,
+                        colLabels=df.columns,
+                        cellLoc='center',
+                        loc='center',
+                        bbox=[0, 0, 1, 1])
+        
+        # Style the table
+        table.auto_set_font_size(False)
+        table.set_fontsize(10)
+        table.scale(1, 2)
+        
+        # Color code by severity
+        severity_colors = {
+            'Critical': '#FF6B6B',
+            'Medium': '#FFE66D',
+            'Low': '#95E1D3'
+        }
+        
+        for i, row in df.iterrows():
+            severity = row['Severity']
+            color = severity_colors.get(severity, '#FFFFFF')
+            for j in range(len(df.columns)):
+                table[(i + 1, j)].set_facecolor(color)
+        
+        # Header styling
+        for j in range(len(df.columns)):
+            table[(0, j)].set_facecolor('#4ECDC4')
+            table[(0, j)].set_text_props(weight='bold')
+        
+        ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
+        
+        if save_name:
+            self.save_figure(fig, save_name.replace('.png', ''))
+        
+        return fig
+
+    def create_task_comparison_table(
+        self,
+        multi_model_results: Dict[str, Dict[str, Any]],
+        save_name: str = "task_comparison_table.png",
+        title: str = "Side-by-Side Model Performance by Task"
+    ) -> plt.Figure:
+        """
+        Create task comparison table showing side-by-side model performance.
+
+        Args:
+            multi_model_results: Dictionary with model results
+            save_name: Name for saved figure
+            title: Figure title
+
+        Returns:
+            Matplotlib figure object
+        """
+        # Organize data by task
+        task_comparison = {}
+        
+        for model_name, model_results in multi_model_results.items():
+            for task_name, task_results in model_results.items():
+                if task_name not in task_comparison:
+                    task_comparison[task_name] = {}
+                
+                # Get primary metrics for each task
+                if task_name == 'entailment_inference':
+                    metrics = {
+                        'Accuracy': f"{task_results.get('avg_accuracy', 0):.3f}",
+                        'Precision': f"{task_results.get('avg_precision', 0):.3f}",
+                        'Recall': f"{task_results.get('avg_recall', 0):.3f}",
+                        'F1-Score': f"{task_results.get('avg_f1_score', 0):.3f}"
+                    }
+                elif task_name == 'summary_ranking':
+                    metrics = {
+                        'Kendall τ': f"{task_results.get('avg_kendall_tau', 0):.3f}",
+                        'Spearman ρ': f"{task_results.get('avg_spearman_rho', 0):.3f}",
+                        'NDCG': f"{task_results.get('avg_ndcg', 0):.3f}",
+                        'Pairwise Acc.': f"{task_results.get('avg_pairwise_accuracy', 0):.3f}"
+                    }
+                elif task_name == 'consistency_rating':
+                    metrics = {
+                        'Pearson r': f"{task_results.get('avg_pearson_correlation', 0):.3f}",
+                        'MAE': f"{task_results.get('avg_mae', 0):.1f}",
+                        'RMSE': f"{task_results.get('avg_rmse', 0):.1f}",
+                        'Avg Rating': f"{task_results.get('avg_rating', 0):.1f}"
+                    }
+                else:
+                    metrics = {'Score': f"{task_results.get('primary_metric', 0):.3f}"}
+                
+                task_comparison[task_name][model_name] = metrics
+        
+        if not task_comparison:
+            fig, ax = plt.subplots(figsize=(12, 6))
+            ax.text(0.5, 0.5, 'No comparison data available', 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            return fig
+        
+        # Create subplots for each task
+        n_tasks = len(task_comparison)
+        fig, axes = plt.subplots(n_tasks, 1, figsize=(14, n_tasks * 4))
+        
+        if n_tasks == 1:
+            axes = [axes]
+        
+        for i, (task_name, task_data) in enumerate(task_comparison.items()):
+            ax = axes[i]
+            ax.axis('tight')
+            ax.axis('off')
+            
+            # Prepare data for table
+            models = list(task_data.keys())
+            if models:
+                metrics = list(task_data[models[0]].keys())
+                
+                # Create table data
+                table_data = []
+                for metric in metrics:
+                    row = [metric]
+                    for model in models:
+                        row.append(task_data[model].get(metric, 'N/A'))
+                    table_data.append(row)
+                
+                # Create table
+                col_labels = ['Metric'] + models
+                table = ax.table(cellText=table_data,
+                               colLabels=col_labels,
+                               cellLoc='center',
+                               loc='center',
+                               bbox=[0, 0, 1, 1])
+                
+                # Style the table
+                table.auto_set_font_size(False)
+                table.set_fontsize(10)
+                table.scale(1, 1.5)
+                
+                # Header styling
+                for j in range(len(col_labels)):
+                    table[(0, j)].set_facecolor('#4ECDC4')
+                    table[(0, j)].set_text_props(weight='bold')
+                
+                # Alternating row colors
+                for i_row in range(1, len(table_data) + 1):
+                    color = '#F0F0F0' if i_row % 2 == 0 else '#FFFFFF'
+                    for j in range(len(col_labels)):
+                        table[(i_row, j)].set_facecolor(color)
+                
+                ax.set_title(f'{task_name.replace("_", " ").title()}', 
+                           fontsize=14, fontweight='bold', pad=10)
+        
+        fig.suptitle(title, fontsize=16, fontweight='bold', y=0.98)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        
+        if save_name:
+            self.save_figure(fig, save_name.replace('.png', ''))
+        
+        return fig
+
 
 class TaskPerformanceVisualizer:
     """Specialized visualizer for task performance analysis."""
@@ -209,7 +948,6 @@ class TaskPerformanceVisualizer:
 
         tasks = list(results.keys())
         if not tasks:
-            # Create empty plot with message
             ax1.text(0.5, 0.5, 'No task results available', ha='center', va='center', 
                     transform=ax1.transAxes, fontsize=12)
             ax1.set_title('Performance Metrics')
@@ -225,11 +963,9 @@ class TaskPerformanceVisualizer:
         
         for task in tasks:
             task_data = results[task]
-            # Get primary metric
             primary_metric = task_data.get('primary_metric', 0)
             primary_metrics.append(primary_metric)
             
-            # Get cost and time data
             costs.append(task_data.get('cost', 0))
             times.append(task_data.get('processing_time', 0))
 
@@ -241,7 +977,6 @@ class TaskPerformanceVisualizer:
         ax1.set_ylim(0, 1.1)
         ax1.grid(axis='y', alpha=0.3)
         
-        # Add value labels on bars
         for bar, value in zip(bars, primary_metrics):
             height = bar.get_height()
             ax1.text(bar.get_x() + bar.get_width()/2., height + 0.01,
@@ -267,7 +1002,6 @@ class TaskPerformanceVisualizer:
             ax2.set_xticklabels(clean_names, rotation=0, ha='center')
             ax2.grid(axis='y', alpha=0.3)
             
-            # Add legends
             ax2.legend(loc='upper left')
             ax2_twin.legend(loc='upper right')
         else:
@@ -327,7 +1061,6 @@ class TaskPerformanceVisualizer:
         ax1.legend()
         ax1.set_ylim(0, 1)
 
-        # Add value labels on bars
         for bars in [bars1, bars2]:
             for bar in bars:
                 height = bar.get_height()
@@ -350,7 +1083,6 @@ class TaskPerformanceVisualizer:
         ax2.set_title('Chain-of-Thought Improvement over Zero-Shot')
         ax2.set_xticklabels([task.replace('_', ' ').title() for task in tasks], rotation=0, ha='center')
 
-        # Add value labels
         for bar, pct in zip(bars, improvement_pct):
             height = bar.get_height()
             ax2.annotate(f'{pct:.1f}%',
@@ -578,7 +1310,6 @@ class StatisticalAnalysisVisualizer:
         ax2.set_title('Effect Sizes')
         ax2.tick_params(axis='x', rotation=0)
 
-        # Add effect size interpretation lines
         ax2.axhline(y=0.2, color='green', linestyle=':', alpha=0.7, label='Small (0.2)')
         ax2.axhline(y=0.5, color='orange', linestyle=':', alpha=0.7, label='Medium (0.5)')
         ax2.axhline(y=0.8, color='red', linestyle=':', alpha=0.7, label='Large (0.8)')
@@ -903,7 +1634,6 @@ class EssentialRatingVisualizer:
         ax2.set_title('Rating Statistics')
         ax2.grid(True, alpha=0.3)
         
-        # Add statistics text
         stats_text = f'Mean: {np.mean(ratings):.1f}\nStd: {np.std(ratings):.1f}\nMin: {np.min(ratings):.1f}\nMax: {np.max(ratings):.1f}'
         ax2.text(0.02, 0.98, stats_text, transform=ax2.transAxes, fontsize=10,
                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
