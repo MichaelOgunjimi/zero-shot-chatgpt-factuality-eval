@@ -1,14 +1,22 @@
 """
-Comprehensive OpenAI Client for ChatGPT Factuality Evaluation
-===========================================================
+Enhanced Multi-Provider LLM Client for Factuality Evaluation
+==========================================================
 
-Robust OpenAI API integration with rate limiting, cost tracking,
-response parsing, and academic research features specifically
-designed for factuality evaluation experiments.
+Unified client supporting both OpenAI API and Ollama models with consistent
+interface for factuality evaluation experiments. Supports GPT-4.1-mini,
+Qwen2.5:7b, and Llama3.1:8b models.
+
+Features:
+- Unified API for OpenAI and Ollama models
+- Automatic provider detection based on model configuration
+- Cost tracking for OpenAI models
+- Rate limiting and error handling
+- Response validation and parsing
 
 Author: Michael Ogunjimi
 Institution: University of Manchester
 Course: MSc AI
+Date: August 4, 2025
 """
 
 import os
@@ -36,16 +44,18 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class ChatGPTResponse:
+class LLMResponse:
     """
-    Structured response from ChatGPT API call.
+    Unified response structure for all LLM providers.
 
     Contains the response content along with metadata needed
-    for analysis, cost tracking, and reproducibility.
+    for analysis, cost tracking, and reproducibility across
+    both OpenAI and Ollama models.
     """
 
     content: str
     model: str
+    provider: str  # 'openai' or 'ollama'
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
@@ -74,10 +84,11 @@ class APICallResult:
     Result from API call with parsed factuality evaluation response.
 
     Provides structured access to the response content along with
-    metadata and parsed task-specific results.
+    metadata and parsed task-specific results. Works with both
+    OpenAI and Ollama providers.
     """
 
-    raw_response: ChatGPTResponse
+    raw_response: LLMResponse  # Updated to use LLMResponse
     parsed_content: Dict[str, Any]
     task_type: str
     parsing_successful: bool
@@ -187,7 +198,9 @@ class RateLimiter:
                 wait_time = max(wait_time, 60 - (current_time - self.token_usage[0][0]))
 
         if wait_time > 0:
-            self.logger.info(f"Rate limit reached. Waiting {wait_time:.2f} seconds.")
+            # Only log if wait time is significant (> 1 second)
+            if wait_time > 1.0:
+                self.logger.info(f"Rate limit reached. Waiting {wait_time:.1f}s.")
             time.sleep(wait_time)
 
         # Record this request
@@ -229,7 +242,6 @@ class CostCalculator:
     OpenAI pricing with support for different models.
     """
 
-    # Updated OpenAI pricing (as of January 2025) - Only supported models
     PRICING = {
         "gpt-4.1-mini": {
             "input": 0.0004,    # $0.00040 per 1K tokens
@@ -261,7 +273,6 @@ class CostCalculator:
             Cost in USD
         """
         if model not in cls.PRICING:
-            # Use the first available model pricing as fallback
             fallback_model = next(iter(cls.PRICING.keys()))
             logger.warning(f"Unknown model for pricing: {model}. Using {fallback_model} pricing.")
             model = fallback_model
@@ -285,15 +296,16 @@ class CostCalculator:
 
 class OpenAIClient:
     """
-    Comprehensive OpenAI client for ChatGPT factuality evaluation.
+    Enhanced multi-provider LLM client for factuality evaluation.
 
+    Supports both OpenAI API and Ollama models with unified interface.
     Provides robust API integration with rate limiting, cost tracking,
     response parsing, and academic research features.
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
-        Initialize OpenAI client.
+        Initialize multi-provider LLM client.
 
         Args:
             config: Configuration dictionary
@@ -301,54 +313,18 @@ class OpenAIClient:
         self.config = config or get_config()
         self.logger = get_logger(self.__class__.__name__)
 
-        # Setup OpenAI API
-        self._setup_openai_api()
+        # Setup API configurations
+        self._setup_api_clients()
 
-        # Model configuration - Remove hardcoded defaults
-        openai_config = self.config.get("openai", {})
-        models_config = openai_config.get("models", {})
-        self.primary_model = models_config.get("primary")
-        self.fallback_models = models_config.get("fallbacks", [])
-        
-        if not self.primary_model:
-            raise ValueError("No primary model specified in configuration. Use get_config(model='model-name') to load model-specific config.")
+        # Load model configurations from experiments2 if available, otherwise use legacy config
+        self._load_model_configurations()
 
-        # Generation parameters (model-agnostic)
-        generation_config = openai_config.get("generation", {})
-        self.default_temperature = generation_config.get("temperature", 0.0)
-        self.default_max_tokens = generation_config.get("max_tokens", 2048)
-        self.default_top_p = generation_config.get("top_p", 1.0)
-
-        # API settings
-        api_config = openai_config.get("api", {})
-        self.timeout = api_config.get("timeout", 30)
-        self.max_retries = api_config.get("max_retries", 3)
-
-        # Initialize rate limiter - Remove hardcoded defaults
-        rate_limits = openai_config.get("rate_limits", {})
-        self.rate_limiter = RateLimiter(
-            requests_per_minute=rate_limits.get("requests_per_minute"),
-            tokens_per_minute=rate_limits.get("tokens_per_minute"), 
-            requests_per_day=rate_limits.get("requests_per_day"),
-        )
-        
-        if not rate_limits:
-            self.logger.warning("No rate limits specified in configuration. Use get_config(model='model-name') to load model-specific config.")
-
-        # Initialize cost tracker
-        cost_config = openai_config.get("cost_control", {})
-        self.cost_tracker = CostTracker(
-            daily_budget=cost_config.get("daily_budget", 50.0),
-            total_budget=cost_config.get("total_budget", 200.0),
-            warning_threshold=cost_config.get("warning_threshold", 0.8),
-        )
+        # Initialize rate limiter and cost tracker
+        self._initialize_rate_limiting()
+        self._initialize_cost_tracking()
 
         # Token encoder for accurate token counting
-        try:
-            self.token_encoder = tiktoken.encoding_for_model(self.primary_model)
-        except KeyError:
-            self.token_encoder = tiktoken.get_encoding("cl100k_base")
-            logger.warning(f"Using default encoding for {self.primary_model}")
+        self._setup_token_encoder()
 
         # Statistics tracking
         self.total_requests = 0
@@ -356,7 +332,192 @@ class OpenAIClient:
         self.failed_requests = 0
         self.total_tokens_used = 0
 
-        self.logger.info(f"OpenAI client initialized with model: {self.primary_model}")
+        self.logger.info(f"Multi-provider LLM client initialized with primary model: {self.primary_model}")
+
+    def _load_model_configurations(self):
+        """Load model configurations from config (experiments2 or legacy format)."""
+        experiments2_config = self.config.get('experiments2', {})
+        if experiments2_config and 'models' in experiments2_config:
+            self._load_experiments2_models()
+        else:
+            self._load_legacy_models()
+
+    def _load_experiments2_models(self):
+        """Load models from experiments2 configuration."""
+        models_config = self.config.get('experiments2', {}).get('models', {})
+        
+        # Find enabled models
+        self.available_models = {}
+        enabled_models = []
+        
+        for model_key, model_data in models_config.items():
+            if model_data.get('enabled', False):
+                # Expand environment variables in configuration
+                api_config = model_data.get('api_config', {})
+                base_url = os.path.expandvars(api_config.get('base_url', ''))
+                api_key = os.path.expandvars(api_config.get('api_key', ''))
+                
+                model_config = {
+                    'name': model_data.get('name', model_key),
+                    'provider': model_data.get('provider'),
+                    'model_id': model_data.get('model_id'),
+                    'base_url': base_url,
+                    'api_key': api_key,
+                    'timeout': api_config.get('timeout', 120),
+                    'max_retries': api_config.get('max_retries', 3),
+                    'retry_delay': api_config.get('retry_delay', 2.0),
+                    'generation_params': model_data.get('generation_params', {}),
+                    'cost_tracking': model_data.get('cost_tracking', False)
+                }
+                
+                self.available_models[model_key] = model_config
+                enabled_models.append(model_key)
+        
+        if enabled_models:
+            # Use first enabled model as primary
+            self.primary_model = enabled_models[0]
+            self.primary_model_config = self.available_models[self.primary_model]
+            self.fallback_models = enabled_models[1:]
+            
+            # Set generation parameters from primary model
+            gen_params = self.primary_model_config.get('generation_params', {})
+            self.default_temperature = gen_params.get('temperature', 0.0)
+            self.default_max_tokens = gen_params.get('max_tokens', 2048)
+            self.default_top_p = gen_params.get('top_p', 1.0)
+            
+            self.logger.info(f"Loaded {len(enabled_models)} models from experiments2 config")
+        else:
+            raise ValueError("No enabled models found in experiments2 configuration")
+
+    def _load_legacy_models(self):
+        """Load models from legacy OpenAI configuration."""
+        openai_config = self.config.get("openai", {})
+        models_config = openai_config.get("models", {})
+        
+        self.primary_model = models_config.get("primary")
+        self.fallback_models = models_config.get("fallbacks", [])
+        
+        if not self.primary_model:
+            raise ValueError("No primary model specified in configuration. Use get_config(model='model-name') to load model-specific config.")
+
+        self.available_models = {
+            self.primary_model: {
+                'name': self.primary_model,
+                'provider': 'openai',
+                'model_id': self.primary_model,
+                'base_url': 'https://api.openai.com/v1',
+                'api_key': os.getenv('OPENAI_API_KEY'),
+                'timeout': 120,
+                'max_retries': 3,
+                'retry_delay': 2.0,
+                'generation_params': openai_config.get('generation', {}),
+                'cost_tracking': True
+            }
+        }
+        self.primary_model_config = self.available_models[self.primary_model]
+
+        # Generation parameters (model-agnostic)
+        generation_config = openai_config.get("generation", {})
+        self.default_temperature = generation_config.get("temperature", 0.0)
+        self.default_max_tokens = generation_config.get("max_tokens", 2048)
+        self.default_top_p = generation_config.get("top_p", 1.0)
+
+    def _setup_api_clients(self):
+        """Setup API clients for different providers."""
+        self.openai_clients = {}  # Will store provider-specific clients
+
+    def _get_or_create_client(self, model_key: str):
+        """Get or create API client for specific model."""
+        if model_key not in self.available_models:
+            raise ValueError(f"Model {model_key} not available. Available models: {list(self.available_models.keys())}")
+        
+        if model_key not in self.openai_clients:
+            model_config = self.available_models[model_key]
+            
+            # Create OpenAI client (works for both OpenAI and Ollama via OpenAI-compatible API)
+            try:
+                if model_config['provider'] == 'ollama':
+                    # Validate Ollama endpoint
+                    if not model_config['base_url'].startswith('http://') and not model_config['base_url'].startswith('https://'):
+                        raise ValueError(f"Ollama base_url must start with http:// or https://, got: {model_config['base_url']}")
+                    if 'ollama' not in model_config['base_url']:
+                        self.logger.warning(f"Ollama provider base_url does not contain 'ollama': {model_config['base_url']}")
+                self.openai_clients[model_key] = openai.AsyncOpenAI(
+                    base_url=model_config['base_url'],
+                    api_key=model_config['api_key'],
+                    timeout=model_config['timeout']
+                )
+                self.logger.info(f"Created client for {model_config['name']} ({model_config['provider']})")
+            except Exception as e:
+                self.logger.error(f"Failed to create API client for {model_config['name']} ({model_config['provider']}): {e}")
+                raise
+        
+        return self.openai_clients[model_key]
+
+    def _initialize_rate_limiting(self):
+        """Initialize rate limiting based on configuration."""
+        if hasattr(self, 'primary_model_config'):
+            # Use model-specific rate limits from experiments2 config
+            api_config = self.primary_model_config.get('api_config', {})
+            rate_limits = api_config.get('rate_limits', {})
+            
+            # If no rate limits in api_config, check global config
+            if not rate_limits:
+                global_config = self.config.get("experiments2", {}).get("models", {})
+                model_id = self.primary_model_config.get('model_id', self.primary_model)
+                model_config = global_config.get(model_id, {})
+                rate_limits = model_config.get('api_config', {}).get('rate_limits', {})
+            
+            # Initialize with actual rate limits or reasonable defaults
+            self.rate_limiter = RateLimiter(
+                requests_per_minute=rate_limits.get("requests_per_minute", 4500),  # GPT-4.1-mini Tier 2
+                tokens_per_minute=rate_limits.get("tokens_per_minute", 1800000),   # GPT-4.1-mini Tier 2
+                requests_per_day=rate_limits.get("requests_per_day", 648000),      # Conservative daily estimate
+            )
+        else:
+            # Legacy configuration
+            openai_config = self.config.get("openai", {})
+            rate_limits = openai_config.get("rate_limits", {})
+            self.rate_limiter = RateLimiter(
+                requests_per_minute=rate_limits.get("requests_per_minute", 4500),
+                tokens_per_minute=rate_limits.get("tokens_per_minute", 1800000), 
+                requests_per_day=rate_limits.get("requests_per_day", 648000),
+            )
+
+    def _initialize_cost_tracking(self):
+        """Initialize cost tracking."""
+        if hasattr(self, 'primary_model_config'):
+            self.cost_tracker = CostTracker(
+                daily_budget=50.0,
+                total_budget=200.0,
+                warning_threshold=0.8,
+            )
+        else:
+            # Legacy configuration
+            openai_config = self.config.get("openai", {})
+            cost_config = openai_config.get("cost_control", {})
+            self.cost_tracker = CostTracker(
+                daily_budget=cost_config.get("daily_budget", 50.0),
+                total_budget=cost_config.get("total_budget", 200.0),
+                warning_threshold=cost_config.get("warning_threshold", 0.8),
+            )
+
+    def _setup_token_encoder(self):
+        """Setup token encoder for token counting."""
+        try:
+            # Try to use encoder for primary model
+            if hasattr(self, 'primary_model_config'):
+                model_id = self.primary_model_config['model_id']
+                if 'gpt' in model_id.lower():
+                    self.token_encoder = tiktoken.encoding_for_model(model_id)
+                else:
+                    # For non-OpenAI models, use default encoding
+                    self.token_encoder = tiktoken.get_encoding("cl100k_base")
+            else:
+                self.token_encoder = tiktoken.encoding_for_model(self.primary_model)
+        except KeyError:
+            self.token_encoder = tiktoken.get_encoding("cl100k_base")
+            self.logger.warning(f"Using default encoding for token counting")
 
     def _setup_openai_api(self) -> None:
         """Setup OpenAI API configuration."""
@@ -418,17 +579,17 @@ class OpenAIClient:
     async def _make_api_call(
         self,
         messages: List[Dict[str, str]],
-        model: str,
+        model_key: str,
         temperature: float,
         max_tokens: int,
         **kwargs,
     ) -> Dict[str, Any]:
         """
-        Make the actual API call with retry logic.
+        Make the actual API call with retry logic for any provider.
 
         Args:
             messages: Messages for the API call
-            model: Model to use
+            model_key: Model key to identify which client/model to use
             temperature: Temperature parameter
             max_tokens: Maximum tokens to generate
             **kwargs: Additional parameters
@@ -437,17 +598,20 @@ class OpenAIClient:
             API response
         """
         try:
-            response = await self.openai_client.chat.completions.create(
-                model=model,
+            model_config = self.available_models[model_key]
+            client = self._get_or_create_client(model_key)
+            
+            response = await client.chat.completions.create(
+                model=model_config['model_id'],
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=self.timeout,
+                timeout=model_config['timeout'],
                 **kwargs,
             )
             return response
         except Exception as e:
-            self.logger.error(f"API call failed: {e}")
+            self.logger.error(f"API call failed for {model_key}: {e}")
             raise
 
     def _get_adaptive_max_tokens(self, formatted_prompt: FormattedPrompt) -> int:
@@ -484,19 +648,19 @@ class OpenAIClient:
         max_tokens: Optional[int] = None,
         model: Optional[str] = None,
         **kwargs,
-    ) -> ChatGPTResponse:
+    ) -> LLMResponse:
         """
-        Generate response from ChatGPT for factuality evaluation.
+        Generate response from any configured LLM for factuality evaluation.
 
         Args:
             formatted_prompt: FormattedPrompt object
             temperature: Temperature parameter (0.0 for deterministic)
             max_tokens: Maximum tokens to generate
-            model: Model to use (defaults to primary model)
+            model: Model key to use (defaults to primary model)
             **kwargs: Additional generation parameters
 
         Returns:
-            ChatGPTResponse object
+            LLMResponse object
 
         Raises:
             ValueError: If budget exceeded or other validation errors
@@ -508,15 +672,24 @@ class OpenAIClient:
             temperature if temperature is not None else self.default_temperature
         )
         max_tokens = max_tokens if max_tokens is not None else self._get_adaptive_max_tokens(formatted_prompt)
-        model = model or self.primary_model
+        model_key = model or self.primary_model
+
+        # Get model configuration
+        if model_key not in self.available_models:
+            raise ValueError(f"Model {model_key} not available. Available models: {list(self.available_models.keys())}")
+        
+        model_config = self.available_models[model_key]
 
         # Count prompt tokens
         prompt_tokens = self.count_tokens(formatted_prompt.prompt_text)
 
-        # Check budget before making call
-        estimated_cost = CostCalculator.estimate_cost(model, prompt_tokens, max_tokens)
-        if not self.cost_tracker.can_afford(estimated_cost):
-            raise ValueError("Estimated cost exceeds budget limits")
+        # Check budget before making call (only for OpenAI models)
+        if model_config.get('cost_tracking', False):
+            estimated_cost = CostCalculator.estimate_cost(model_config['model_id'], prompt_tokens, max_tokens)
+            if not self.cost_tracker.can_afford(estimated_cost):
+                raise ValueError("Estimated cost exceeds budget limits")
+        else:
+            estimated_cost = 0.0
 
         # Apply rate limiting
         wait_time = self.rate_limiter.wait_if_needed(prompt_tokens + max_tokens)
@@ -531,7 +704,7 @@ class OpenAIClient:
             # Make API call
             response = await self._make_api_call(
                 messages=messages,
-                model=model,
+                model_key=model_key,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 **kwargs,
@@ -542,35 +715,38 @@ class OpenAIClient:
             content = choice.message.content.strip()
             finish_reason = choice.finish_reason
 
-            # Log what model OpenAI actually returned
+            # Log what model was actually used
             returned_model = response.model
-            self.logger.info(f"OpenAI returned model: {returned_model}, requested: {model}")
+            self.logger.info(f"API returned model: {returned_model}, requested: {model_config['model_id']}")
 
             usage = response.usage
             completion_tokens = usage.completion_tokens
             total_tokens = usage.total_tokens
             actual_prompt_tokens = usage.prompt_tokens
 
-            # Calculate actual cost
-            actual_cost = CostCalculator.calculate_cost(
-                model, actual_prompt_tokens, completion_tokens
-            )
+            # Calculate actual cost (only for OpenAI models)
+            actual_cost = 0.0
+            if model_config.get('cost_tracking', False):
+                actual_cost = CostCalculator.calculate_cost(
+                    model_config['model_id'], actual_prompt_tokens, completion_tokens
+                )
 
-            # Track cost
-            self.cost_tracker.add_cost(
-                cost=actual_cost,
-                model=model,
-                experiment_name=self.config.get("experiment_name"),
-                task_name=formatted_prompt.task_type,
-            )
+                # Track cost
+                self.cost_tracker.add_cost(
+                    cost=actual_cost,
+                    model=model_config['model_id'],
+                    experiment_name=self.config.get("experiment_name"),
+                    task_name=formatted_prompt.task_type,
+                )
 
             # Calculate response time
             response_time = time.time() - start_time - wait_time
 
             # Create response object
-            chatgpt_response = ChatGPTResponse(
+            llm_response = LLMResponse(
                 content=content,
-                model=model,
+                model=model_config['model_id'],
+                provider=model_config['provider'],
                 prompt_tokens=actual_prompt_tokens,
                 completion_tokens=completion_tokens,
                 total_tokens=total_tokens,
@@ -580,57 +756,98 @@ class OpenAIClient:
                 finish_reason=finish_reason,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                request_id=response.id,  # Use .id instead of .get("id")
+                request_id=response.id,
             )
 
             # Update statistics
             self.successful_requests += 1
             self.total_tokens_used += total_tokens
 
-            # Log detailed request/response for debugging
-            self.logger.info(
-                f"ChatGPT response generated: {completion_tokens} tokens, "
-                f"${actual_cost:.4f}, {response_time:.2f}s"
-            )
-            
-            # Detailed logging disabled for cleaner output
-            # self.logger.info("=" * 80)
-            # self.logger.info("OPENAI REQUEST DETAILS:")
-            # self.logger.info(f"Model: {model}")
-            # self.logger.info(f"Temperature: {temperature}")
-            # self.logger.info(f"Max Tokens: {max_tokens}")
-            # self.logger.info(f"Task Type: {formatted_prompt.task_type}")
-            # self.logger.info(f"Prompt Type: {formatted_prompt.prompt_type}")
-            # self.logger.info("-" * 40)
-            # self.logger.info("FULL PROMPT:")
-            # for i, msg in enumerate(messages):
-            #     self.logger.info(f"Message {i+1} ({msg['role']}):")
-            #     self.logger.info(f"{msg['content']}")
-            #     self.logger.info("-" * 20)
-            # self.logger.info("-" * 40)
-            # self.logger.info("OPENAI RESPONSE:")
-            # self.logger.info(f"Content: {content}")
-            # self.logger.info(f"Finish Reason: {finish_reason}")
-            # self.logger.info(f"Total Tokens: {total_tokens} (Prompt: {actual_prompt_tokens}, Completion: {completion_tokens})")
-            # self.logger.info(f"Cost: ${actual_cost:.4f}")
-            # self.logger.info(f"Response Time: {response_time:.2f}s")
-            # self.logger.info("=" * 80)
+            # Log detailed request/response for debugging - only for errors or significant costs
+            if actual_cost > 0.001 or response_time > 5.0:  # Only log expensive or slow requests
+                self.logger.debug(
+                    f"{model_config['name']} response: {completion_tokens} tokens, "
+                    f"${actual_cost:.4f}, {response_time:.2f}s"
+                )
 
-            return chatgpt_response
+            return llm_response
 
         except Exception as e:
             self.failed_requests += 1
-            self.logger.error(f"Failed to generate response: {e}")
+            self.logger.error(f"Failed to generate response with {model_key}: {e}")
             raise
 
+    def get_available_models(self) -> List[str]:
+        """Get list of available model keys."""
+        return list(self.available_models.keys())
+
+    def get_model_info(self, model_key: str) -> Dict[str, Any]:
+        """Get information about a specific model."""
+        if model_key not in self.available_models:
+            raise ValueError(f"Model {model_key} not available")
+        
+        model_config = self.available_models[model_key]
+        return {
+            'name': model_config['name'],
+            'provider': model_config['provider'],
+            'model_id': model_config['model_id'],
+            'cost_tracking': model_config['cost_tracking']
+        }
+
+    def switch_primary_model(self, model_key: str):
+        """Switch the primary model to a different available model."""
+        if model_key not in self.available_models:
+            raise ValueError(f"Model {model_key} not available. Available models: {list(self.available_models.keys())}")
+        
+        old_primary = self.primary_model
+        self.primary_model = model_key
+        self.primary_model_config = self.available_models[model_key]
+        
+        self.logger.info(f"Switched primary model from {old_primary} to {model_key}")
+
+    def get_provider_info(self) -> Dict[str, Any]:
+        """Get information about the current provider and available models."""
+        return {
+            "primary_model": self.primary_model,
+            "primary_provider": self.primary_model_config.get('provider', 'unknown'),
+            "available_models": {
+                model_key: {
+                    "name": config.get('name', model_key),
+                    "provider": config.get('provider', 'unknown'),
+                    "model_id": config.get('model_id', model_key)
+                }
+                for model_key, config in self.available_models.items()
+            },
+            "total_models": len(self.available_models)
+        }
+
+    def get_cost_summary(self) -> Dict[str, Any]:
+        """Get cost tracking summary for OpenAI models."""
+        cost_analysis = self.cost_tracker.get_analysis()
+        
+        # Add model-specific cost breakdown
+        cost_analysis["model_costs"] = {}
+        openai_models = [
+            model_key for model_key, config in self.available_models.items()
+            if config.get('cost_tracking', False)
+        ]
+        
+        cost_analysis["tracking_enabled_models"] = openai_models
+        cost_analysis["tracking_disabled_models"] = [
+            model_key for model_key, config in self.available_models.items()
+            if not config.get('cost_tracking', False)
+        ]
+        
+        return cost_analysis
+
     def parse_factuality_response(
-        self, response: ChatGPTResponse, task_type: str
+        self, response: LLMResponse, task_type: str
     ) -> APICallResult:
         """
-        Parse ChatGPT response for factuality evaluation tasks.
+        Parse LLM response for factuality evaluation tasks.
 
         Args:
-            response: ChatGPTResponse object
+            response: LLMResponse object
             task_type: Type of factuality task
 
         Returns:
@@ -668,14 +885,19 @@ class OpenAIClient:
 
     def _parse_entailment_response(self, content: str) -> Dict[str, Any]:
         """Parse entailment inference response."""
-        content_upper = content.upper()
-
-        # For any response, look for ENTAILMENT or CONTRADICTION anywhere in the content
+        # Focus on final classification section for chain-of-thought responses
+        search_content = content
+        if "FINAL CLASSIFICATION:" in content.upper():
+            final_classification_idx = content.upper().find("FINAL CLASSIFICATION:")
+            search_content = content[final_classification_idx:]
+        
+        content_upper = search_content.upper()
+        
         # Count occurrences to find the most likely answer
         entailment_count = content_upper.count("ENTAILMENT")
         contradiction_count = content_upper.count("CONTRADICTION")
         
-        # If we have a clear winner, use it
+        # Determine prediction based on counts and positions
         if entailment_count > contradiction_count:
             prediction = 1
             answer = "ENTAILMENT"
@@ -683,7 +905,7 @@ class OpenAIClient:
             prediction = 0
             answer = "CONTRADICTION"
         elif entailment_count == contradiction_count and entailment_count > 0:
-            # If tied, look at the last occurrence (likely the final decision)
+            # If tied, use the last occurrence (likely the final decision)
             last_entailment = content_upper.rfind("ENTAILMENT")
             last_contradiction = content_upper.rfind("CONTRADICTION")
             
@@ -694,217 +916,201 @@ class OpenAIClient:
                 prediction = 0
                 answer = "CONTRADICTION"
         else:
-            # No clear answer found, default to CONTRADICTION for this dataset
+            # No clear answer found, default to CONTRADICTION
             prediction = 0
             answer = "CONTRADICTION"
 
         return {"prediction": prediction, "answer": answer, "raw_content": content}
 
     def _parse_ranking_response(self, content: str, finish_reason: str = None) -> Dict[str, Any]:
-        """Parse summary ranking response."""
-        # First check for "FINAL RANKING:" pattern for COT responses
-        if "FINAL RANKING:" in content.upper():
-            final_ranking_idx = content.upper().find("FINAL RANKING:")
-            final_ranking_section = content[final_ranking_idx:]
-            content = final_ranking_section  # Focus on the final ranking section
+        """
+        Parse summary ranking response with multiple fallback strategies.
         
-        # Look for ranking patterns like "Summary 1: Rank 2"
-        ranking_pattern = r"Summary\s+(\d+):\s*Rank\s+(\d+)"
-        matches = re.findall(ranking_pattern, content, re.IGNORECASE)
+        Strategies (in order of priority):
+        1. Summary sequence extraction (works for most formats)
+        2. Numbered list parsing (position → summary mapping)
+        3. Explicit ranking patterns (Summary X: Rank Y)
+        4. Generic ranking patterns (RANKING: 1, 2, 3)
+        5. Aggressive fallback parsing
+        """
+        # Simplified parsing: focus on the most reliable patterns
+        # 1. Try explicit ranking patterns first (RANKING: X, Y, Z)
+        ranking = self._try_generic_pattern_parsing(content)
+        if ranking is not None:
+            return self._finalize_ranking(ranking, content)
+            
+        # 2. Try simple number sequences (1, 2, 3 or 1 2 3)
+        ranking = self._try_simple_sequence_parsing(content)
+        if ranking is not None:
+            return self._finalize_ranking(ranking, content)
+            
+        # 3. Basic fallback for edge cases
+        ranking = self._try_basic_fallback_parsing(content, finish_reason)
+        if ranking is not None:
+            return self._finalize_ranking(ranking, content)
+            
+        raise ValueError("No ranking information found")
 
-        if matches:
-            ranking = {}
-            for summary_idx, rank in matches:
-                ranking[int(summary_idx) - 1] = int(rank)  # Convert to 0-based indexing
-        else:
-            # Enhanced extraction strategy - ChatGPT rarely provides empty responses
-            # Clean the content to extract ranking numbers
-            content_clean = content.strip()
+    def _try_simple_sequence_parsing(self, content: str) -> Optional[Dict[int, int]]:
+        """Parse simple number sequences like '1, 2, 3' or '1 2 3'."""
+        # Look for sequences of numbers (not preceded by explicit ranking keywords)
+        if any(keyword in content.upper() for keyword in ["RANKING:", "FINAL RANKING:"]):
+            return None  # Let generic pattern parsing handle these
             
-            # Strategy 1: Try explicit ranking patterns first
-            ranking_patterns = [
-                r"(?:FINAL RANKING|RANKING|ranking):\s*([0-9,\s\[\]]+)",  # "FINAL RANKING: 1, 2, 3" or "[1,2,3]"
-                r"(?:FINAL RANKING|RANKING|ranking)[\s:]*([0-9,\s\[\]]+)",  # More flexible spacing
-                r"FINAL RANKING[\s:]*([0-9,\s\[\]]+)",  # More specific "FINAL RANKING: 1, 2, 3"
-                r"\[([0-9,\s]+)\]",  # Just bracketed numbers: "[1, 2, 3]"
-                r"([0-9]+(?:[,\s]+[0-9]+)+)",   # Multiple numbers with separators
-                r"([0-9,\s]+)$",  # Just numbers at end: "1, 2, 3"
-            ]
+        # Find sequences of 2+ numbers
+        number_sequences = re.findall(r"(?:^|\s)(\d+(?:[,\s]+\d+)+)(?:\s|$)", content, re.MULTILINE)
+        
+        for sequence in number_sequences:
+            numbers = re.findall(r"\d+", sequence)
+            if len(numbers) >= 2:
+                valid_numbers = [int(n) for n in numbers if 1 <= int(n) <= 10]
+                if len(valid_numbers) >= 2:
+                    # Interpret as preference order
+                    ranking = {}
+                    for rank_position, summary_number in enumerate(valid_numbers):
+                        summary_idx = summary_number - 1  # Convert to 0-based
+                        actual_rank = rank_position + 1   # 1-based rank (1=best)
+                        ranking[summary_idx] = actual_rank
+                    return ranking
+        
+        return None
+
+    def _try_basic_fallback_parsing(self, content: str, finish_reason: str) -> Optional[Dict[int, int]]:
+        """Simple fallback parsing for edge cases."""
+        # Check for truncation first
+        if finish_reason == 'length':
+            raise ValueError(f"Response was truncated due to token limit. Content: {content[:100]}...")
             
-            ranking_numbers = None
-            for pattern in ranking_patterns:
-                matches = re.findall(pattern, content_clean, re.IGNORECASE)
-                if matches:
-                    # Take the last match (most likely to be the final answer)
-                    ranking_numbers = matches[-1]
-                    break
+        # Extract all numbers and try to form a ranking
+        all_numbers = re.findall(r"\d+", content)
+        valid_numbers = [int(n) for n in all_numbers if 1 <= int(n) <= 10]
+        
+        if len(valid_numbers) >= 2:
+            # Take the last few numbers as potential ranking
+            last_numbers = valid_numbers[-3:] if len(valid_numbers) >= 3 else valid_numbers
             
-            if ranking_numbers:
-                # Extract individual numbers more robustly
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_numbers = []
+            for num in reversed(last_numbers):
+                if num not in seen:
+                    unique_numbers.append(num)
+                    seen.add(num)
+            unique_numbers = list(reversed(unique_numbers))
+            
+            if len(unique_numbers) >= 2:
+                # Interpret as preference order
+                ranking = {}
+                for rank_position, summary_number in enumerate(unique_numbers):
+                    summary_idx = summary_number - 1  # Convert to 0-based
+                    actual_rank = rank_position + 1   # 1-based rank (1=best)
+                    ranking[summary_idx] = actual_rank
+                return ranking
+        
+        raise ValueError(f"Could not find sufficient ranking numbers. Content: {content[:200]}...")
+
+    def _try_generic_pattern_parsing(self, content: str) -> Optional[Dict[int, int]]:
+        """Strategy 4: Parse generic ranking patterns like 'RANKING: 1, 2, 3'."""
+        content_clean = content.strip()
+        
+        patterns = [
+            r"(?:FINAL RANKING|RANKING|ranking)\s*(?:is)?\s*:\s*([0-9,\s\[\]]+)",
+            r"(?:FINAL RANKING|RANKING|ranking)\s*(?:is)?\s*[\s:]*([0-9,\s\[\]]+)",
+            r"FINAL RANKING[\s:]*([0-9,\s\[\]]+)",
+            r"\[([0-9,\s]+)\]",
+            r"([0-9]+(?:\s*,\s*[0-9]+)+)",
+            r"([0-9,\s]+)$",
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, content_clean, re.IGNORECASE)
+            if matches:
+                ranking_numbers = matches[-1]  # Take the last match
                 numbers = re.findall(r"\d+", ranking_numbers)
+                
                 if numbers:
-                    # Convert to integers and validate range
-                    valid_numbers = []
-                    for num_str in numbers:
-                        num = int(num_str)
-                        if 1 <= num <= 10:  # Reasonable rank range
-                            valid_numbers.append(num)
-                    
-                    if valid_numbers:
-                        # Assume sequential order: first number is rank for summary 1, etc.
+                    valid_numbers = [int(n) for n in numbers if 1 <= int(n) <= 10]
+                    if len(valid_numbers) >= 2:
+                        # Interpret as order preference: "2, 1, 3" means Summary 2 first, Summary 1 second, Summary 3 third
+                        # Convert to ranking: Summary at position i gets rank based on its position in the list
                         ranking = {}
-                        for i, rank in enumerate(valid_numbers):
-                            ranking[i] = rank  # i is 0-based summary index
-                    else:
-                        # Check if response was truncated (common cause of parsing failures)
-                        if finish_reason == 'length':
-                            raise ValueError(f"Response was truncated due to token limit. Consider increasing max_tokens. Content: {content[:100]}...")
-                        else:
-                            # Strategy 2: Look for any valid numbers in the response
-                            all_numbers = re.findall(r"\d+", content)
-                            valid_ranks = [int(n) for n in all_numbers if 1 <= int(n) <= 10]
-                            if valid_ranks:
-                                ranking = {i: rank for i, rank in enumerate(valid_ranks)}
-                            else:
-                                raise ValueError(f"No valid ranking numbers (1-10) found in: {ranking_numbers}")
-                else:
-                    # Check if response was truncated (common cause of parsing failures)
-                    if finish_reason == 'length':
-                        raise ValueError(f"Response was truncated due to token limit. Consider increasing max_tokens. Content: {content[:100]}...")
-                    else:
-                        raise ValueError(f"Could not extract ranking numbers from: {ranking_numbers}")
-            else:
-                # Strategy 3: More aggressive fallback - look for ANY ranking-like patterns in the text
-                # Split into lines and look for patterns
-                lines = content.split('\n')
-                found_ranking = False
-                
-                for line in lines:
-                    line = line.strip()
-                    # Look for lines that might contain rankings
-                    if any(keyword in line.lower() for keyword in ['ranking', 'order', 'rank', 'best', 'worst']):
-                        # Extract numbers from this line
-                        line_numbers = re.findall(r"\d+", line)
-                        valid_ranks = [int(n) for n in line_numbers if 1 <= int(n) <= 10]
-                        if len(valid_ranks) >= 2:  # Need at least 2 rankings
-                            ranking = {i: rank for i, rank in enumerate(valid_ranks)}
-                            found_ranking = True
-                            break
-                
-                if not found_ranking:
-                    # Strategy 4: Final fallback - extract all valid numbers and use them as ranking
-                    all_numbers = re.findall(r"\d+", content)
-                    valid_ranks = []
-                    for num in all_numbers:
-                        rank = int(num)
-                        if 1 <= rank <= 10:  # Reasonable rank range
-                            valid_ranks.append(rank)
-                    
-                    if len(valid_ranks) >= 2:
-                        # Take the last few numbers that could be a ranking
-                        # Remove duplicates while preserving order
-                        seen = set()
-                        unique_ranks = []
-                        for rank in reversed(valid_ranks):
-                            if rank not in seen:
-                                unique_ranks.append(rank)
-                                seen.add(rank)
-                        unique_ranks = list(reversed(unique_ranks))
-                        
-                        if len(unique_ranks) >= 2:
-                            ranking = {i: rank for i, rank in enumerate(unique_ranks)}
-                        else:
-                            # Check if response was truncated
-                            if finish_reason == 'length':
-                                raise ValueError(f"Response was truncated due to token limit. Consider increasing max_tokens. Content: {content[:100]}...")
-                            else:
-                                raise ValueError(f"Could not identify unique ranking from numbers: {valid_ranks}")
-                    else:
-                        # Check if response was truncated
-                        if finish_reason == 'length':
-                            raise ValueError(f"Response was truncated due to token limit. Consider increasing max_tokens. Content: {content[:100]}...")
-                        else:
-                            raise ValueError(f"Could not find sufficient ranking numbers in response. Content: {content[:200]}...")
+                        for rank_position, summary_number in enumerate(valid_numbers):
+                            summary_idx = summary_number - 1  # Convert to 0-based
+                            actual_rank = rank_position + 1   # 1-based rank (1=best)
+                            ranking[summary_idx] = actual_rank
+                        return ranking
+        
+        return None
 
+    def _finalize_ranking(self, ranking: Dict[int, int], content: str) -> Dict[str, Any]:
+        """Apply smart extension logic and convert to final format."""
         # Smart ranking extension logic for partial rankings
-        if ranking:
-            # Assume 3 summaries by default (most common case)
-            expected_count = 3
-            current_count = len(ranking)
+        expected_count = 3  # Assume 3 summaries by default
+        current_count = len(ranking)
+        
+        if current_count < expected_count:
+            # Find missing indices and fill with missing ranks
+            provided_ranks = set(ranking.values())
+            all_possible_ranks = set(range(1, expected_count + 1))
+            missing_ranks = sorted(all_possible_ranks - provided_ranks)
             
-            if current_count < expected_count:
-                # Find missing indices and append them in order
-                provided_ranks = set(ranking.values())
-                all_possible_ranks = set(range(1, expected_count + 1))
-                missing_ranks = sorted(all_possible_ranks - provided_ranks)
-                
-                # Add missing rankings
-                for i in range(current_count, expected_count):
-                    if missing_ranks:
-                        ranking[i] = missing_ranks.pop(0)
-                    else:
-                        # If no more missing ranks, use next available number
-                        ranking[i] = max(provided_ranks) + 1 + (i - current_count)
-            
-            elif current_count > expected_count:
-                # Truncate to expected size
-                truncated_ranking = {}
-                for i in range(expected_count):
-                    if i in ranking:
-                        truncated_ranking[i] = ranking[i]
-                ranking = truncated_ranking
+            for i in range(current_count, expected_count):
+                if missing_ranks:
+                    ranking[i] = missing_ranks.pop(0)
+                else:
+                    ranking[i] = max(provided_ranks) + 1 + (i - current_count)
+                    
+        elif current_count > expected_count:
+            # Truncate to expected size
+            ranking = {i: ranking[i] for i in range(expected_count) if i in ranking}
 
         # Convert to ranked list format
-        if ranking:
-            max_summary_idx = max(ranking.keys())
-            ranked_list = [0] * (max_summary_idx + 1)
-            for summary_idx, rank in ranking.items():
-                ranked_list[summary_idx] = rank
-        else:
-            raise ValueError("No ranking information found")
+        max_summary_idx = max(ranking.keys())
+        ranked_list = [0] * (max_summary_idx + 1)
+        for summary_idx, rank in ranking.items():
+            ranked_list[summary_idx] = rank
 
         return {"ranking": ranking, "ranked_list": ranked_list, "raw_content": content}
 
     def _parse_rating_response(self, content: str) -> Dict[str, Any]:
         """Parse consistency rating response."""
-        # First check for "FINAL RATING:" pattern for COT responses
+        # Focus on final rating section for chain-of-thought responses
+        search_content = content
         if "FINAL RATING:" in content.upper():
             final_rating_idx = content.upper().find("FINAL RATING:")
-            final_rating_section = content[final_rating_idx:]
-            content = final_rating_section  # Focus on the final rating section
+            search_content = content[final_rating_idx:]
         
-        # Try specific patterns first
+        # Try common rating patterns
         rating_patterns = [
             r"[Rr]ating:?\s*(\d+(?:\.\d+)?)",
-            r"[Ss]core:?\s*(\d+(?:\.\d+)?)",
+            r"[Ss]core:?\s*(\d+(?:\.\d+)?)", 
             r"(\d+(?:\.\d+)?)\s*\/\s*100",
-            r"(\d+(?:\.\d+)?)\s*out\s*of\s*100"
+            r"(\d+(?:\.\d+)?)\s*out\s*of\s*100",
+            r"(\d+(?:\.\d+)?)\s*points?"
         ]
         
         rating = None
         for pattern in rating_patterns:
-            matches = re.findall(pattern, content, re.IGNORECASE)
+            matches = re.findall(pattern, search_content, re.IGNORECASE)
             if matches:
                 candidate = float(matches[-1])  # Take the last match
                 if 0 <= candidate <= 100:
                     rating = candidate
                     break
         
+        # Fallback: look for any valid numbers
         if rating is None:
-            # Look for any numbers in valid range
-            numbers = re.findall(r"\b(\d+(?:\.\d+)?)\b", content)
-            if numbers:
-                for num_str in reversed(numbers):  # Start from the end
-                    num = float(num_str)
-                    if 0 <= num <= 100:
-                        rating = num
-                        break
+            numbers = re.findall(r"\b(\d+(?:\.\d+)?)\b", search_content)
+            for num_str in reversed(numbers):  # Start from the end
+                candidate = float(num_str)
+                if 0 <= candidate <= 100:
+                    rating = candidate
+                    break
         
         if rating is None:
-            # Check if response was truncated
             finish_reason = getattr(self, '_last_finish_reason', None)
             if finish_reason == 'length':
-                raise ValueError(f"Response was truncated due to token limit. Consider increasing max_tokens. Content: {content[:100]}...")
+                raise ValueError(f"Response truncated due to token limit. Content: {content[:100]}...")
             else:
                 raise ValueError(f"No numeric rating found in response: {content[:200]}...")
 
@@ -1056,9 +1262,10 @@ def parse_factuality_response(content: str, task_type: str) -> Dict[str, Any]:
     client = OpenAIClient()
 
     # Create dummy response for parsing
-    dummy_response = ChatGPTResponse(
+    dummy_response = LLMResponse(
         content=content,
         model="gpt-4o-mini",
+        provider="openai",
         prompt_tokens=0,
         completion_tokens=0,
         total_tokens=0,

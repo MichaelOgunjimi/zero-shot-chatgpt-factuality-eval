@@ -17,10 +17,9 @@ Course: MSc AI
 from typing import Optional
 
 from .openai_client import (
-    # Main client class
     OpenAIClient,
     # Response handling
-    ChatGPTResponse,
+    LLMResponse,
     APICallResult,
     # Rate limiting and cost tracking
     RateLimiter,
@@ -36,7 +35,7 @@ __all__ = [
     # Core client
     "OpenAIClient",
     # Response types
-    "ChatGPTResponse",
+    "LLMResponse",
     "APICallResult",
     # Supporting classes
     "RateLimiter",
@@ -172,7 +171,6 @@ def estimate_experiment_cost(
     }
 
 
-# Quick setup function for common use cases
 def setup_chatgpt_client(
     model_name: Optional[str] = None,
     max_requests_per_minute: int = 10,
