@@ -127,14 +127,9 @@ class BinaryClassificationMetrics:
 
         return {
             "accuracy": accuracy_score(y_true, y_pred),
-            "precision": precision_score(y_true, y_pred, zero_division=0),
-            "recall": recall_score(y_true, y_pred, zero_division=0),
-            "f1_score": f1_score(y_true, y_pred, zero_division=0),
-            "precision_0": precision_score(
-                y_true, y_pred, pos_label=0, zero_division=0
-            ),
-            "recall_0": recall_score(y_true, y_pred, pos_label=0, zero_division=0),
-            "f1_score_0": f1_score(y_true, y_pred, pos_label=0, zero_division=0),
+            "precision": precision_score(y_true, y_pred, average='binary', zero_division=0),
+            "recall": recall_score(y_true, y_pred, average='binary', zero_division=0),
+            "f1_score": f1_score(y_true, y_pred, average='binary', zero_division=0),
         }
 
     @staticmethod
@@ -153,7 +148,6 @@ class BinaryClassificationMetrics:
         """
         cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
 
-        # Extract components
         tn, fp, fn, tp = cm.ravel() if cm.size == 4 else (0, 0, 0, 0)
 
         total = len(y_true)
@@ -314,6 +308,7 @@ class EntailmentInferenceTask(BaseFactualityTask):
             max_examples=task_config_dict.get("max_examples"),
             include_human_eval=task_config_dict.get("include_human_eval", False),
             save_intermediate=task_config_dict.get("save_intermediate", True),
+            show_progress=task_config_dict.get("show_progress", True),
             cache_responses=task_config_dict.get("cache_responses", True),
             retry_failed=task_config_dict.get("retry_failed", True),
         )
@@ -446,7 +441,21 @@ class EntailmentInferenceTask(BaseFactualityTask):
 
         if has_human_labels:
             # Compute classification metrics against human labels
-            y_true = [int(r.human_label) for r in successful_results]
+            # Convert human labels to integer format consistently
+            y_true = []
+            for r in successful_results:
+                if isinstance(r.human_label, (int, float)):
+                    y_true.append(int(r.human_label))
+                elif isinstance(r.human_label, str):
+                    # Convert string labels to binary format
+                    if r.human_label.lower() in ['entailment', 'entailed', 'yes', 'true', '1']:
+                        y_true.append(1)
+                    else:
+                        y_true.append(0)
+                else:
+                    # Default case
+                    y_true.append(0)
+            
             y_pred = predictions
 
             # Basic metrics

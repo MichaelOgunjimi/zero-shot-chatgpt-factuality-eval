@@ -214,8 +214,8 @@ def get_task_requirements() -> dict:
         ],
         "required_environment_variables": ["OPENAI_API_KEY"],
         "required_datasets": [
-            "CNN/DailyMail (for news domain evaluation)",
-            "XSum (for abstractive summarization)",
+            "FRANK (for factuality error detection)",
+            "SummEval (for consistency rating evaluation)",
         ],
         "computational_requirements": {
             "memory": "4GB+ RAM recommended",
@@ -230,7 +230,6 @@ def get_task_requirements() -> dict:
     }
 
 
-# Quick setup verification
 def quick_setup_check() -> bool:
     """
     Quick check if the tasks module is properly set up.
@@ -245,7 +244,6 @@ def quick_setup_check() -> bool:
         from ..utils.config import get_config
         from ..utils.logging import get_logger
 
-        # Check if basic task creation works
         task = create_task("entailment_inference")
 
         return True

@@ -96,6 +96,7 @@ class TaskConfig:
     max_examples: Optional[int] = None
     include_human_eval: bool = False
     save_intermediate: bool = True
+    show_progress: bool = True  # Control visual progress bar display
     cache_responses: bool = True
     retry_failed: bool = True
 
@@ -164,10 +165,8 @@ class TaskResult:
         if self.human_label is None:
             return None
 
-        # Handle different prediction types
         prediction_value = self.prediction
         
-        # Extract numeric value from result objects
         if hasattr(self.prediction, 'rating'):
             prediction_value = self.prediction.rating
         elif hasattr(self.prediction, 'prediction'):
@@ -178,10 +177,8 @@ class TaskResult:
         if isinstance(prediction_value, (int, float)) and isinstance(
             self.human_label, (int, float)
         ):
-            # For binary or rating tasks
             return abs(prediction_value - self.human_label) < 0.5
         elif isinstance(prediction_value, list) and isinstance(self.human_label, list):
-            # For ranking tasks
             return prediction_value == self.human_label
         else:
             return False
@@ -215,7 +212,6 @@ class BaseFactualityTask(ABC):
         # Initialize task-specific configuration
         self.task_config = self._create_task_config()
 
-        # Initialize components
         self.prompt_manager = prompt_manager or PromptManager(self.config)
         self.llm_client = llm_client or OpenAIClient(self.config)
 
@@ -280,7 +276,6 @@ class BaseFactualityTask(ABC):
         else:
             variables["summary"] = example.get_summary_for_binary_task()
 
-        # Format the prompt
         formatted_prompt = self.prompt_manager.format_prompt(
             task_type=self.task_config.task_type,
             prompt_type=self.task_config.prompt_type,
@@ -313,7 +308,6 @@ class BaseFactualityTask(ABC):
             if not self._validate_example(example):
                 raise ValueError("Example validation failed")
 
-            # Format prompt
             formatted_prompt = self.format_prompt(example)
 
             # Generate response using LLM client
@@ -321,15 +315,12 @@ class BaseFactualityTask(ABC):
                 formatted_prompt=formatted_prompt,
                 temperature=self.task_config.temperature,
                 max_tokens=self.task_config.max_tokens,
-                model=self.task_config.model_name,
             )
 
-            # Process result
             if api_result.parsing_successful:
                 task_result = self._process_api_result(api_result, example)
                 self.results.append(task_result)
 
-                # Update performance tracking
                 self.total_examples_processed += 1
                 self.total_cost += api_result.raw_response.cost
                 self.total_time += time.time() - start_time
@@ -369,18 +360,19 @@ class BaseFactualityTask(ABC):
 
         self.logger.info(f"Processing {len(examples)} examples")
 
-        # Create progress tracker
+        show_progress = getattr(self.task_config, 'show_progress', True)
         progress_tracker = ProgressTracker(
             total=len(examples),
             description=f"{self.task_config.task_type} evaluation",
             experiment_name=self.config.get("experiment_name"),
             show_cost=True,
+            disable=not show_progress,  # Respect show_progress setting
+            update_frequency=10000  # Log every 10000 items for large batches
         )
 
         results = []
         batch_size = self.task_config.batch_size
 
-        # Process in batches
         for i in range(0, len(examples), batch_size):
             batch = examples[i : i + batch_size]
 
@@ -391,7 +383,6 @@ class BaseFactualityTask(ABC):
                 if result:
                     batch_results.append(result)
 
-                # Update progress
                 cost = result.cost if result else 0.0
                 progress_tracker.update(cost=cost)
 
@@ -401,7 +392,6 @@ class BaseFactualityTask(ABC):
 
             results.extend(batch_results)
 
-            # Save intermediate results if configured
             if (
                 self.task_config.save_intermediate
                 and len(results) % max(batch_size * 2, 10) == 0  # Save every 2 batches or at least every 10 results
@@ -411,7 +401,6 @@ class BaseFactualityTask(ABC):
         # Finalize progress tracking
         summary = progress_tracker.finish()
 
-        # Save final intermediate results to ensure we always have them
         if self.task_config.save_intermediate and results:
             await self._save_intermediate_results(results)
 
@@ -533,7 +522,6 @@ class BaseFactualityTask(ABC):
         # Ensure output directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Save results
         import json
 
         with open(output_path, "w") as f:
@@ -576,7 +564,6 @@ def validate_task_config(config: Dict[str, Any]) -> bool:
         if not task_config.get("enabled", False):
             continue
 
-        # Check required task fields
         required_fields = ["prompt_types", "evaluation_metrics"]
         for field in required_fields:
             if field not in task_config:

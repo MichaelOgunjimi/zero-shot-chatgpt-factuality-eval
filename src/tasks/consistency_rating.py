@@ -78,7 +78,6 @@ class RatingResult(TaskResult):
 
     def get_rating_error(self, human_rating: float) -> float:
         """Calculate absolute error against human rating."""
-        # Handle case where human_rating might be a RatingResult object
         if hasattr(human_rating, 'rating'):
             human_rating = human_rating.rating
         return abs(self.rating - human_rating)
@@ -385,6 +384,11 @@ class RatingMetrics:
         categorical_metrics = RatingMetrics.categorical_agreement(y_true, y_pred)
         metrics["categorical_analysis"] = categorical_metrics
 
+        if y_pred:
+            metrics["mean_rating"] = float(np.mean(y_pred))
+        else:
+            metrics["mean_rating"] = 0.0
+
         return metrics
 
 
@@ -449,6 +453,7 @@ class ConsistencyRatingTask(BaseFactualityTask):
 
             # Validate human rating if present
             if example.human_label is not None:
+                logger.debug(f"Example {example.example_id}: Human label value={example.human_label}, type={type(example.human_label)}")
                 if not isinstance(example.human_label, (int, float)):
                     logger.warning(
                         f"Example {example.example_id}: Human label must be numeric for rating"
@@ -456,9 +461,12 @@ class ConsistencyRatingTask(BaseFactualityTask):
                     return False
 
                 human_rating = float(example.human_label)
-                if not (0 <= human_rating <= 100):
+                logger.debug(f"Example {example.example_id}: Converted human rating={human_rating}")
+                # Accept both binary labels (0/1) and 0-100 scale labels
+                # Binary labels will be converted during processing
+                if not ((0 <= human_rating <= 1) or (0 <= human_rating <= 100)):
                     logger.warning(
-                        f"Example {example.example_id}: Human rating outside valid range [0, 100]"
+                        f"Example {example.example_id}: Human rating must be 0-1 (binary) or 0-100 (scale)"
                     )
                     return False
 
@@ -491,7 +499,6 @@ class ConsistencyRatingTask(BaseFactualityTask):
 
         # Ensure rating is in valid range
         rating = max(0.0, min(100.0, float(rating)))
-
         return RatingResult(
             example_id=example.example_id,
             task_type=self.task_config.task_type,
@@ -505,7 +512,7 @@ class ConsistencyRatingTask(BaseFactualityTask):
             tokens_used=raw_response.total_tokens,
             timestamp=raw_response.timestamp,
             success=True,
-            human_label=example.human_label,
+            human_label=self._convert_binary_label_to_scale(example.human_label),
             metadata={
                 "source_length": len(example.source),
                 "summary_length": len(example.get_summary_for_binary_task()),
@@ -528,6 +535,22 @@ class ConsistencyRatingTask(BaseFactualityTask):
             },
         )
 
+    def _convert_binary_label_to_scale(self, human_label):
+        """Convert binary labels (0/1) to match prompt's 0-100 scale ranges."""
+        if human_label is None:
+            return None
+        
+        label_val = float(human_label)
+        if label_val in {0.0, 1.0}:
+            # Convert to match prompt ranges:
+            # 0 (not factual) -> 25 (many errors: 25-49 range)  
+            # 1 (factual) -> 75 (minor issues: 75-99 range)
+            # This aligns with prompt's categorical descriptions
+            return 75.0 if label_val == 1.0 else 25.0
+        else:
+            # Already on correct scale
+            return label_val
+
     def evaluate_predictions(self, results: List[TaskResult]) -> Dict[str, float]:
         """
         Compute comprehensive evaluation metrics for consistency rating.
@@ -549,10 +572,8 @@ class ConsistencyRatingTask(BaseFactualityTask):
         if not successful_results:
             return {"error": "No successful results to evaluate"}
 
-        # Extract ratings
         ratings = [r.rating for r in successful_results]
 
-        # Check if we have human labels for evaluation
         human_ratings = [
             float(r.human_label)
             for r in successful_results
@@ -682,7 +703,6 @@ class ConsistencyRatingTask(BaseFactualityTask):
         }
 
         # Distribution shape analysis
-        # Check for skewness
         from scipy import stats as scipy_stats
 
         skewness = scipy_stats.skew(ratings)
@@ -791,7 +811,6 @@ class ConsistencyRatingTask(BaseFactualityTask):
             }
 
         # Rating consistency analysis
-        # Check for patterns in rating categories
         categories = [r.rating_category for r in successful_results]
         category_consistency = {}
 
