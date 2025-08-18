@@ -45,18 +45,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
-# Add project root to path for both script and module execution
 if __name__ == "__main__":
-    # Script execution - add parent directory
     sys.path.insert(0, str(Path(__file__).parent.parent))
 else:
-    # Module execution - add project root if needed
     current_dir = Path(__file__).resolve().parent.parent
     if str(current_dir) not in sys.path:
         sys.path.insert(0, str(current_dir))
 
 try:
-    # Import project modules with error handling
     from src.utils import (
         setup_experiment_logger,
         load_config,
@@ -330,7 +326,6 @@ class MasterExperimentRunner:
             
             experiment_name = f"chatgpt_evaluation_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
-            # Create experiment with specific output directory and model config
             chatgpt_experiment = ChatGPTEvaluationExperiment(
                 experiment_name=experiment_name,
                 log_dir=str(self.chatgpt_output_dir / "logs"),
@@ -339,16 +334,13 @@ class MasterExperimentRunner:
                 tier=self.tier
             )
             
-            # Create the output directory structure for the nested experiment
             self.chatgpt_output_dir.mkdir(parents=True, exist_ok=True)
             
-            # Get sample size from configuration based on test mode
             mode = "quick_test" if quick_test else "comprehensive"
             chatgpt_config = self.config.get('experiments', {}).get('main_experiments', {}).get('chatgpt_evaluation', {})
             sample_sizes = chatgpt_config.get('sample_sizes', {})
             sample_size = sample_sizes.get(mode, chatgpt_config.get('sample_size', 1000))
             
-            # Get other parameters from config
             tasks = chatgpt_config.get('tasks', ['entailment_inference', 'summary_ranking', 'consistency_rating'])
             datasets = chatgpt_config.get('datasets', ['cnn_dailymail', 'xsum'])
             if quick_test:
@@ -463,7 +455,6 @@ class MasterExperimentRunner:
             
             experiment_name = f"sota_comparison_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
-            # Create experiment with specific output directory
             sota_experiment = SOTAComparisonExperiment(
                 model=self.model,
                 tier=self.tier,
@@ -472,16 +463,13 @@ class MasterExperimentRunner:
                 output_dir=str(self.sota_output_dir)
             )
             
-            # Create the output directory structure for the nested experiment
             self.sota_output_dir.mkdir(parents=True, exist_ok=True)
             
-            # Get sample size from configuration based on test mode
             mode = "quick_test" if quick_test else "comprehensive"
             sota_config = self.config.get('experiments', {}).get('main_experiments', {}).get('sota_comparison', {})
             sample_sizes = sota_config.get('sample_sizes', {})
             sample_size = sample_sizes.get(mode, sota_config.get('sample_size', 300))
             
-            # Get other parameters from config
             tasks = sota_config.get('tasks', ['entailment_inference', 'consistency_rating'])
             datasets = sota_config.get('datasets', ['cnn_dailymail', 'xsum'])
             if quick_test:
@@ -707,7 +695,6 @@ class MasterExperimentRunner:
         if not cost_breakdown:
             return
         
-        # Create pie chart for cost breakdown
         fig = go.Figure(data=[go.Pie(
             labels=list(cost_breakdown.keys()),
             values=list(cost_breakdown.values()),
@@ -859,7 +846,6 @@ class MasterExperimentRunner:
         
         key_findings = self.experiment_results.get('consolidated_analysis', {}).get('key_findings', {})
         
-        # Create structured key findings summary
         summary = {
             "experiment_name": self.experiment_name,
             "generated_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -871,7 +857,6 @@ class MasterExperimentRunner:
             }
         }
         
-        # Add prompt comparison findings
         if 'prompt_comparison' in key_findings:
             prompt_findings = key_findings['prompt_comparison']
             improvement = prompt_findings.get('mean_improvement', 0)
@@ -887,7 +872,6 @@ class MasterExperimentRunner:
                 "finding": "Both strategies showed similar 92.5% performance"
             }
         
-        # Add SOTA comparison findings
         if 'sota_comparison' in key_findings:
             sota_findings = key_findings['sota_comparison']
             correlation = sota_findings.get('overall_mean_correlation', 0)
@@ -904,7 +888,6 @@ class MasterExperimentRunner:
                 "finding": "FactCC showed highest correlation (0.591)"
             }
         
-        # Add cost analysis
         cost_info = self.experiment_results.get('consolidated_analysis', {}).get('cost_analysis', {})
         total_cost = cost_info.get('total_experimental_cost', 0.0122)
         cost_breakdown = cost_info.get('cost_breakdown_by_experiment', {})
@@ -915,7 +898,6 @@ class MasterExperimentRunner:
             "finding": f"Total experimental cost: ${total_cost:.4f}"
         }
         
-        # Add performance summary
         summary["key_findings"]["performance_summary"] = {
             "chatgpt_accuracy": 0.925,
             "baseline_correlations": {
@@ -926,7 +908,6 @@ class MasterExperimentRunner:
             "finding": "ChatGPT achieved 92.5% accuracy with FactCC showing best correlation"
         }
         
-        # Add overall conclusions
         summary["conclusions"] = [
             "ChatGPT demonstrates strong factuality assessment capabilities",
             "Chain-of-thought prompting shows marginal improvements over zero-shot",
@@ -934,7 +915,6 @@ class MasterExperimentRunner:
             "Cost-effective evaluation at $0.0122 total experimental cost"
         ]
         
-        # Save as JSON file
         json_path = viz_dir / "key_findings_summary.json"
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, ensure_ascii=False)
@@ -974,7 +954,6 @@ class MasterExperimentRunner:
     async def _generate_final_report(self):
         """Generate final consolidated report for thesis inclusion."""
         
-        # Save consolidated results as JSON
         json_path = self.master_output_dir / "master_experimental_results.json"
         with open(json_path, 'w') as f:
             json.dump(self.experiment_results, f, indent=2, default=str)
@@ -989,7 +968,6 @@ class MasterExperimentRunner:
         with open(summary_path, 'w') as f:
             f.write(self._generate_executive_summary())
         
-        # Create a README with directory structure
         readme_path = self.output_dir / "README.md"
         with open(readme_path, 'w') as f:
             f.write(self._generate_directory_readme())
@@ -1168,7 +1146,6 @@ comparison with state-of-the-art baseline methods.
 
 """
         
-        # Add key findings based on experimental results
         key_findings = self.experiment_results['consolidated_analysis']['key_findings']
         
         if 'prompt_comparison' in key_findings:
@@ -1184,13 +1161,11 @@ comparison with state-of-the-art baseline methods.
             summary += f"### Baseline Correlation\n"
             summary += f"Overall correlation of {correlation:.3f} with traditional metrics, strongest with {best_baseline.upper()}.\n\n"
         
-        # Add cost and efficiency information
         cost_analysis = self.experiment_results['consolidated_analysis']['cost_analysis']
         total_cost = cost_analysis.get('total_experimental_cost', 0)
         summary += f"### Resource Efficiency\n"
         summary += f"Complete experimental suite executed for ${total_cost:.4f}, demonstrating practical feasibility.\n\n"
         
-        # Add implications
         summary += "## Research Implications\n\n"
         summary += "1. **Methodological Contribution**: First systematic evaluation of ChatGPT's zero-shot factuality assessment\n"
         summary += "2. **Practical Application**: Demonstrates viability for automated evaluation in production systems\n"
@@ -1355,7 +1330,6 @@ Sample Size Modes:
     print(f"   Tier: {args.tier}")
     print()
     
-    # Initialize master experiment runner with model config
     master_runner = MasterExperimentRunner(
         model=args.model,
         tier=args.tier,

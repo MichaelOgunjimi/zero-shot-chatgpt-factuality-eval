@@ -34,18 +34,14 @@ from typing import Dict, List, Any, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Add project root to path for both script and module execution
 if __name__ == "__main__":
-    # Script execution - add parent directory
     sys.path.insert(0, str(Path(__file__).parent.parent))
 else:
-    # Module execution - add project root if needed
     current_dir = Path(__file__).resolve().parent.parent
     if str(current_dir) not in sys.path:
         sys.path.insert(0, str(current_dir))
 
 try:
-    # Import project modules with error handling
     from src.utils import (
         setup_experiment_logger,
         create_visualization_engine,
@@ -165,7 +161,6 @@ class ChatGPTEvaluationExperiment:
         """
         self.logger.info("Starting ChatGPT factuality evaluation")
         
-        # Set defaults
         if tasks is None:
             tasks = ['entailment_inference', 'summary_ranking', 'consistency_rating']
         if datasets is None:
@@ -359,7 +354,6 @@ class ChatGPTEvaluationExperiment:
         """Analyze correlations between task performances."""
         correlations = {}
         
-        # Extract performance data for each task
         task_performances = {}
         for task_name, task_results in self.results['task_results'].items():
             performances = []
@@ -378,7 +372,6 @@ class ChatGPTEvaluationExperiment:
                     len(task_performances[task2]) > 1 and
                     len(task_performances[task1]) == len(task_performances[task2])):
                     
-                    # Simple Pearson correlation
                     corr = self._pearson_correlation(
                         task_performances[task1],
                         task_performances[task2]
@@ -416,7 +409,6 @@ class ChatGPTEvaluationExperiment:
             'performance_recommendations': []
         }
         
-        # Check if task_performance_summary exists
         task_summary = performance_analysis.get('task_performance_summary', {})
         
         if not task_summary:
@@ -522,7 +514,6 @@ class ChatGPTEvaluationExperiment:
     def _generate_evaluation_metrics_plot(self, task_data: Dict[str, Dict[str, float]], viz_dir: Path, generated_plots: Dict[str, str]):
         """Generate detailed evaluation metrics visualization (F1, Precision, Recall)."""
         try:
-            # Get detailed metrics from task results
             detailed_metrics = {}
             
             for task_name, task_results in self.results['task_results'].items():
@@ -544,9 +535,7 @@ class ChatGPTEvaluationExperiment:
                         recall = metrics.get('recall', 0) 
                         f1 = metrics.get('f1_score', 0)
                         
-                        # Enhanced proxy metrics for tasks without human labels
                         if precision == 0 and recall == 0 and f1 == 0:
-                            # For tasks without human labels, use intelligent proxy metrics
                             if task_name == 'entailment_inference':
                                 # Use entailment rate as proxy, with slight variation for precision/recall
                                 entailment_rate = metrics.get('entailment_rate', accuracy if accuracy > 0 else 0.7)
@@ -555,7 +544,6 @@ class ChatGPTEvaluationExperiment:
                                 recall = max(entailment_rate - 0.02, 0.0)
                                 f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
                             elif task_name == 'summary_ranking':
-                                # Use validity rate but add quality considerations
                                 validity_rate = metrics.get('validity_rate', accuracy if accuracy > 0 else 0.8)
                                 # Assume some quality degradation from format validity
                                 precision = validity_rate  # Format correctness
@@ -584,7 +572,6 @@ class ChatGPTEvaluationExperiment:
                         'primary_metric': sum(all_accuracy) / len(all_accuracy)
                     }
                 else:
-                    # Enhanced fallback values based on task type
                     if task_name == 'entailment_inference':
                         base_score = 0.7
                     elif task_name == 'summary_ranking':
@@ -608,7 +595,6 @@ class ChatGPTEvaluationExperiment:
                 self.logger.warning("No detailed metrics available for evaluation plot")
                 return
             
-            # Create comprehensive evaluation metrics plot
             fig, axes = plt.subplots(2, 2, figsize=(16, 14))
             fig.suptitle('Detailed Evaluation Metrics Analysis', fontsize=16, fontweight='bold', y=0.97)
             
@@ -651,7 +637,6 @@ class ChatGPTEvaluationExperiment:
             ax2.legend()
             ax2.set_ylim(0, 1.1)
             
-            # Add value labels
             for bars in [bars2, bars3]:
                 for bar in bars:
                     height = bar.get_height()
@@ -707,14 +692,12 @@ class ChatGPTEvaluationExperiment:
                 ax4.set_ylim(0, 1.1)
                 ax4.tick_params(axis='x', rotation=45, labelsize=10)
                 
-                # Add value labels
                 for bar in bars5:
                     height = bar.get_height()
                     if height > 0:
                         ax4.text(bar.get_x() + bar.get_width()/2., height + 0.02,
                                 f'{height:.3f}', ha='center', va='bottom', fontweight='bold', fontsize=10)
                 
-                # Add interpretive text
                 ax4.text(0.02, 0.98, 'Higher = More Consistent\nAcross Datasets', 
                         transform=ax4.transAxes, fontsize=9, 
                         verticalalignment='top', style='italic',
@@ -784,7 +767,6 @@ class ChatGPTEvaluationExperiment:
     def _generate_dataset_comparison_plot(self, viz_dir: Path, generated_plots: Dict[str, str]):
         """Generate dataset comparison visualization if multiple datasets are used."""
         try:
-            # Check if we have multiple datasets
             datasets_used = set()
             for task_results in self.results['task_results'].values():
                 datasets_used.update(task_results.keys())
@@ -795,7 +777,6 @@ class ChatGPTEvaluationExperiment:
             
             fig, ax = plt.subplots(figsize=(12, 8))
             
-            # Create comparison across datasets
             dataset_performance = {}
             for dataset in datasets_used:
                 dataset_scores = []
@@ -809,7 +790,6 @@ class ChatGPTEvaluationExperiment:
                 
                 dataset_performance[dataset] = dataset_scores
             
-            # Create grouped bar chart
             x = np.arange(len(task_names))
             width = 0.35
             
@@ -873,7 +853,6 @@ class ChatGPTEvaluationExperiment:
     def _generate_dataset_comparison_plot(self, viz_dir: Path, generated_plots: Dict[str, str]):
         """Generate dataset comparison visualization."""
         try:
-            # Check if we have multiple datasets
             datasets = set()
             for task_results in self.results['task_results'].values():
                 datasets.update(task_results.keys())
@@ -883,7 +862,6 @@ class ChatGPTEvaluationExperiment:
             
             fig, ax = plt.subplots(figsize=(12, 8))
             
-            # Extract dataset performance
             dataset_performance = {}
             for dataset in datasets:
                 dataset_performance[dataset] = {}
@@ -892,7 +870,6 @@ class ChatGPTEvaluationExperiment:
                         primary_metric = task_results[dataset]['performance_metrics'].get('primary_metric', 0)
                         dataset_performance[dataset][task_name] = primary_metric
             
-            # Create grouped bar chart
             tasks = list(self.results['task_results'].keys())
             x = np.arange(len(tasks))
             width = 0.35
@@ -1089,15 +1066,12 @@ class ChatGPTEvaluationExperiment:
     def _move_intermediate_files(self):
         """Move intermediate result files to organized location."""
         try:
-            # Create intermediate_results subfolder for better organization
             intermediate_results_dir = self.output_dir / "intermediate_results"
             intermediate_results_dir.mkdir(exist_ok=True)
             
             # Move intermediate result files from general results folder to experiment folder
-            # Use experiment timestamp to avoid moving files from other experiments
             general_results_dir = Path("results")
             if general_results_dir.exists():
-                # Extract timestamp from experiment name for precise file matching
                 experiment_timestamp = self.experiment_name.split('_')[-2:]  # Get last two parts (date_time)
                 if len(experiment_timestamp) == 2:
                     date_part, time_part = experiment_timestamp
@@ -1312,7 +1286,6 @@ def main():
     
     args = parser.parse_args()
     
-    # Set parameters based on arguments
     tasks = [args.task] if args.task else None
     datasets = [args.dataset] if args.dataset else None
     sample_size = args.sample_size
@@ -1321,7 +1294,6 @@ def main():
         sample_size = 10
         print("Running quick test with 10 examples per dataset")
     
-    # Initialize and run experiment
     experiment = ChatGPTEvaluationExperiment(
         config_path=args.config,
         experiment_name=args.experiment_name

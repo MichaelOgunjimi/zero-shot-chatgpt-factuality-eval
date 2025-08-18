@@ -68,18 +68,14 @@ from sklearn.metrics import (
     confusion_matrix, classification_report, roc_auc_score
 )
 
-# Add project root to path for both script and module execution
 if __name__ == "__main__":
-    # Script execution - add parent directory
     sys.path.insert(0, str(Path(__file__).parent.parent))
 else:
-    # Module execution - add project root if needed
     current_dir = Path(__file__).resolve().parent.parent
     if str(current_dir) not in sys.path:
         sys.path.insert(0, str(current_dir))
 
 try:
-    # Import project modules with error handling
     from src.utils import (
         setup_experiment_logger,
         create_visualization_engine,
@@ -176,7 +172,6 @@ class PromptComparisonExperiment:
         """Update output directory and refresh all output_dirs paths"""
         self.output_dir = Path(new_output_dir)
         
-        # Update all output directories
         self.output_dirs = {
             'main': self.output_dir,
             'logs': self.output_dir / "logs",
@@ -188,7 +183,6 @@ class PromptComparisonExperiment:
             'data': self.output_dir / "data"
         }
         
-        # Create directories
         for dir_path in self.output_dirs.values():
             dir_path.mkdir(parents=True, exist_ok=True)
         
@@ -387,10 +381,8 @@ class PromptComparisonExperiment:
         self.logger.info(f"Running comparison for {task} on {dataset} (trial {trial_id})")
         
         # Load dataset with synthetic labels - use different random samples for each trial
-        # Load more examples than needed to create variance across trials
         all_examples = load_processed_dataset(dataset, task, max_examples=sample_size * 3)
         
-        # Create different random subsets for each trial to introduce realistic variance
         np.random.seed(42 + trial_id)  # Different seed for each trial
         if len(all_examples) > sample_size:
             # Randomly sample different subsets for each trial
@@ -404,7 +396,6 @@ class PromptComparisonExperiment:
             print(f"  🔍 Testing {strategy} prompting strategy")
             
             try:
-                # Create task config with specific prompt strategy
                 task_config = self.config.to_dict()
                 if "tasks" not in task_config:
                     task_config["tasks"] = {}
@@ -412,13 +403,11 @@ class PromptComparisonExperiment:
                     task_config["tasks"][task] = {}
                 task_config["tasks"][task]["prompt_type"] = strategy
                 
-                # Create task with updated config
                 task_instance = create_task(task, task_config)
                 
                 # Record start time and costs
                 start_time = time.time()
                 
-                # Process examples
                 predictions = await task_instance.process_examples(examples)
                 
                 # Record end time
@@ -428,7 +417,6 @@ class PromptComparisonExperiment:
                 # Evaluate results using task's built-in evaluation
                 metrics = task_instance.evaluate_predictions(predictions)
                 
-                # Store results
                 result_key = f"{task}_{dataset}_trial_{trial_id}"
                 if result_key not in self.results['prompt_results'][strategy]:
                     self.results['prompt_results'][strategy][result_key] = {}
@@ -450,7 +438,6 @@ class PromptComparisonExperiment:
                 
             except Exception as e:
                 self.logger.error(f"Failed {strategy} for {task}/{dataset} (trial {trial_id}): {e}")
-                # Store error information
                 error_key = f"{task}_{dataset}_trial_{trial_id}"
                 if 'errors' not in self.results:
                     self.results['errors'] = {}
@@ -638,15 +625,12 @@ class PromptComparisonExperiment:
                     if 'cost' in result and result['cost'] > 0:
                         actual_cost = result['cost']
                     else:
-                        # Get real cost from task execution or use realistic estimate
-                        # For consistency_rating task based on actual experimental data
                         if 'consistency_rating' in result_key:
                             if strategy == 'zero_shot':
                                 actual_cost = 0.0027  # From actual experiment
                             else:  # chain_of_thought
                                 actual_cost = 0.0040  # From actual experiment
                         else:
-                            # For other tasks, use realistic cost estimation
                             actual_cost = result['sample_size'] * 0.0003
                     
                     total_cost += actual_cost
@@ -655,19 +639,15 @@ class PromptComparisonExperiment:
                     
                     # Extract primary performance metric (accuracy, F1, etc.)
                     metrics = result['metrics']
-                    # Handle different metric types for different tasks
                     if 'accuracy' in metrics:
                         performance_scores.append(metrics['accuracy'])
                     elif 'f1_score' in metrics:
                         performance_scores.append(metrics['f1_score'])
                     elif 'r_squared' in metrics:
-                        # For regression tasks like consistency_rating, use R²
                         performance_scores.append(metrics['r_squared'])
                     elif 'mae' in metrics:
-                        # For regression tasks, use inverse of MAE (lower is better)
                         performance_scores.append(1 / (1 + metrics['mae']))
                     elif 'mse' in metrics:
-                        # For regression tasks, use inverse of MSE (lower is better)
                         performance_scores.append(1 / (1 + metrics['mse']))
             
             if performance_scores:
@@ -782,7 +762,6 @@ class PromptComparisonExperiment:
                                     # Normal correlation calculation
                                     corr, p_value = stats.pearsonr(strategy_metrics[metric1], strategy_metrics[metric2])
                                 
-                                # Handle NaN values
                                 if np.isnan(corr):
                                     corr = 0.0
                                 if np.isnan(p_value):
@@ -823,7 +802,6 @@ class PromptComparisonExperiment:
     def _plot_performance_comparison(self) -> None:
         """Generate performance comparison plots."""
         try:
-            # Extract performance data
             performance_data = []
             
             for strategy in self.prompt_strategies:
@@ -844,7 +822,6 @@ class PromptComparisonExperiment:
                                     'Value': metric_value
                                 })
                         
-                        # Also add primary performance metric for better visualization
                         primary_metric = result.get('performance', result['metrics'].get('accuracy', 
                                                    result['metrics'].get('f1_score', 
                                                    result['metrics'].get('r_squared', 0))))
@@ -881,7 +858,6 @@ class PromptComparisonExperiment:
                 self.logger.warning("No meaningful metrics with variance found for plotting")
                 return
             
-            # Update metrics to only meaningful ones
             df = df[df['Metric'].isin(meaningful_metrics)]
             unique_metrics = meaningful_metrics
             n_metrics = len(unique_metrics)
@@ -909,7 +885,6 @@ class PromptComparisonExperiment:
                     ax = axes[i]
                     metric_df = df[df['Metric'] == metric]
                     
-                    # Create boxplot with better error handling
                     try:
                         sns.boxplot(data=metric_df, x='Strategy', y='Value', ax=ax)
                         ax.set_title(f'{metric} by Prompt Strategy')
@@ -942,7 +917,6 @@ class PromptComparisonExperiment:
                     ax = axes[i]
                     metric_df = df[df['Metric'] == metric]
                     
-                    # Create violin plot with better error handling
                     try:
                         sns.violinplot(data=metric_df, x='Strategy', y='Value', ax=ax)
                         ax.set_title(f'{metric} Distribution by Strategy')
@@ -999,7 +973,6 @@ class PromptComparisonExperiment:
                 
                 fig.write_html(self.output_dirs['figures'] / 'interactive_performance_comparison.html')
             else:
-                # For more than 4 metrics, create simple individual plots
                 for i, metric in enumerate(unique_metrics):
                     metric_df = df[df['Metric'] == metric]
                     
@@ -1122,7 +1095,6 @@ class PromptComparisonExperiment:
                 axes[i].set_ylabel(metric.replace('_', ' ').title())
                 axes[i].tick_params(axis='x', rotation=45)
                 
-                # Add value labels on bars
                 for bar, value in zip(bars, values):
                     height = bar.get_height()
                     axes[i].text(bar.get_x() + bar.get_width()/2., height,
@@ -1223,7 +1195,6 @@ class PromptComparisonExperiment:
                     for j, metric2 in enumerate(metrics):
                         if metric2 in corr_matrix[metric1]:
                             corr_val = corr_matrix[metric1][metric2]['correlation']
-                            # Handle NaN values
                             if np.isnan(corr_val):
                                 corr_val = 0.0
                             corr_array[i, j] = corr_val
@@ -1295,7 +1266,6 @@ class PromptComparisonExperiment:
         """Generate time series analysis if applicable."""
         try:
             # This would be more relevant if we had temporal data
-            # For now, create processing time analysis
             
             processing_times = []
             for strategy in self.prompt_strategies:
@@ -1544,7 +1514,6 @@ Datasets Used & {', '.join(metadata['datasets'])} \\
 ### Performance Summary
 """
         
-        # Add statistical findings
         if 'statistical_analysis' in self.results and 'summary_statistics' in self.results['statistical_analysis']:
             report_content += "\n### Statistical Analysis Results\n"
             summary_stats = self.results['statistical_analysis']['summary_statistics']
@@ -1560,7 +1529,6 @@ Datasets Used & {', '.join(metadata['datasets'])} \\
                         for metric, metric_stats in stats['metrics_summary'].items():
                             report_content += f"- {metric}: {metric_stats['mean']:.3f} ± {metric_stats['std']:.3f}\n"
         
-        # Add cost analysis
         if 'cost_analysis' in self.results:
             report_content += "\n### Cost-Effectiveness Analysis\n"
             cost_data = self.results['cost_analysis']
@@ -1574,14 +1542,12 @@ Datasets Used & {', '.join(metadata['datasets'])} \\
             else:
                 report_content += "- Cost analysis data unavailable\n"
         
-        # Add recommendations
         report_content += "\n## Recommendations\n"
         report_content += "Based on the comprehensive analysis:\n\n"
         report_content += "1. **For accuracy-critical applications:** Use the highest-performing strategy\n"
         report_content += "2. **For cost-sensitive applications:** Use the most cost-effective strategy\n"
         report_content += "3. **For time-sensitive applications:** Consider processing time trade-offs\n"
         
-        # Save report
         with open(self.output_dirs['analysis'] / 'comprehensive_report.md', 'w') as f:
             f.write(report_content)
         
@@ -1642,7 +1608,6 @@ Datasets Used & {', '.join(metadata['datasets'])} \\
         """Create backup cost analysis CSV with real data."""
         cost_data = []
         
-        # Use actual experimental data
         for strategy in self.prompt_strategies:
             if strategy == 'zero_shot':
                 cost_data.append({

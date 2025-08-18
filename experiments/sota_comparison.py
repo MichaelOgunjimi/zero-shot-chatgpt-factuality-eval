@@ -42,18 +42,14 @@ from scipy.stats import pearsonr, spearmanr
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# Add project root to path for both script and module execution
 if __name__ == "__main__":
-    # Script execution - add parent directory
     sys.path.insert(0, str(Path(__file__).parent.parent))
 else:
-    # Module execution - add project root if needed
     current_dir = Path(__file__).resolve().parent.parent
     if str(current_dir) not in sys.path:
         sys.path.insert(0, str(current_dir))
 
 try:
-    # Import project modules with error handling
     from src.utils import (
         setup_experiment_logger,
         create_visualization_engine,
@@ -323,7 +319,6 @@ class SOTAComparisonExperiment:
         print(f"\n🔧 Running Baseline Evaluations")
         print("=" * 50)
         
-        # Create baseline instances
         baseline_instances = create_all_baselines(self.config)
         
         for baseline_name in baselines:
@@ -336,7 +331,6 @@ class SOTAComparisonExperiment:
             self.results['baseline_results'][baseline_name] = {}
             
             for task_name in tasks:
-                # Check if baseline supports this task
                 if not baseline.supports_task(task_name):
                     print(f"   ⚠️  Does not support {task_name}, skipping")
                     continue
@@ -345,7 +339,6 @@ class SOTAComparisonExperiment:
                 self.results['baseline_results'][baseline_name][task_name] = {}
                 
                 for dataset_name in datasets:
-                    # Check if we have ChatGPT results for this combination
                     if (task_name not in self.results['chatgpt_results'] or 
                         dataset_name not in self.results['chatgpt_results'][task_name] or
                         'examples' not in self.results['chatgpt_results'][task_name][dataset_name]):
@@ -353,7 +346,6 @@ class SOTAComparisonExperiment:
                         continue
                     
                     try:
-                        # Get examples from ChatGPT results to ensure consistency
                         chatgpt_data = self.results['chatgpt_results'][task_name][dataset_name]
                         examples = chatgpt_data['examples']
                         chatgpt_predictions = chatgpt_data['predictions']
@@ -399,7 +391,6 @@ class SOTAComparisonExperiment:
                             self.config.to_dict()
                         )
                         
-                        # Store results
                         self.results['baseline_results'][baseline_name][task_name][dataset_name] = {
                             'baseline_predictions': baseline_results,
                             'comparison_with_chatgpt': comparison_results,
@@ -407,7 +398,6 @@ class SOTAComparisonExperiment:
                             'dataset_size': len(examples)
                         }
                         
-                        # Extract and display correlation
                         baseline_comparison = comparison_results.get(baseline_name, {})
                         if task_name == "entailment_inference":
                             correlation = baseline_comparison.get('cohens_kappa', 'N/A')
@@ -419,7 +409,6 @@ class SOTAComparisonExperiment:
                             correlation = baseline_comparison.get('avg_spearman_rho', 'N/A')
                             metric_name = "ρ"
                         
-                        # Handle NaN values
                         if isinstance(correlation, float) and np.isnan(correlation):
                             correlation = 'N/A'
                         elif isinstance(correlation, float):
@@ -492,21 +481,17 @@ class SOTAComparisonExperiment:
             # Use baseline-specific thresholds for consistency rating
             if baseline_name == 'factcc':
                 # FactCC typically produces very low scores (1-5), so use median-based threshold
-                # Use the median of the actual scores as threshold
                 if len(scores) > 0:
                     threshold = np.median(scores)
                 else:
                     threshold = 3.0  # Default fallback
             else:
-                # For ChatGPT and other baselines, use 50 as threshold
                 threshold = 50.0
             
             return [1 if score > threshold else 0 for score in scores]
         elif task_name == 'entailment_inference':
-            # For entailment inference: > 0.5 = ENTAILMENT (1), <= 0.5 = CONTRADICTION (0)
             return [1 if score > 0.5 else 0 for score in scores]
         else:
-            # Default threshold of 0.5
             return [1 if score > 0.5 else 0 for score in scores]
     
     def _calculate_agreement_metrics(self, pred1: List[int], pred2: List[int], n_samples: int) -> Dict[str, Any]:
@@ -584,7 +569,6 @@ class SOTAComparisonExperiment:
                     if 'error' in dataset_results:
                         continue
                     
-                    # Get predictions from both methods
                     chatgpt_data = self.results['chatgpt_results'][task_name][dataset_name]
                     
                     if 'predictions' not in chatgpt_data or 'baseline_predictions' not in dataset_results:
@@ -594,7 +578,6 @@ class SOTAComparisonExperiment:
                     chatgpt_predictions = chatgpt_data['predictions']
                     baseline_predictions = dataset_results['baseline_predictions']
                     
-                    # Extract numerical predictions for correlation
                     chatgpt_scores = self._extract_numerical_predictions(chatgpt_predictions, task_name)
                     baseline_scores = self._extract_numerical_predictions(baseline_predictions, task_name)
                     
@@ -625,7 +608,6 @@ class SOTAComparisonExperiment:
                         pearson_corr, pearson_p = pearsonr(chatgpt_scores, baseline_scores)
                         spearman_corr, spearman_p = spearmanr(chatgpt_scores, baseline_scores)
                         
-                        # Check if correlation is valid
                         if np.isnan(pearson_corr) or np.isnan(spearman_corr):
                             raise ValueError("Correlation is NaN - likely due to zero variance")
                         
@@ -646,7 +628,6 @@ class SOTAComparisonExperiment:
                     except Exception as e:
                         self.logger.warning(f"Correlation calculation failed for {baseline_name}-{task_name}-{dataset_name}: {e}")
                         
-                        # For imbalanced datasets, use agreement metrics instead
                         correlation_analysis['pearson_correlations'][baseline_name][task_name][dataset_name] = {
                             'correlation': float('nan'),
                             'p_value': float('nan'),
@@ -674,7 +655,6 @@ class SOTAComparisonExperiment:
                         
                         self.logger.info(f"Agreement metrics: {agreement_metrics}")
                         
-                        # Store agreement metrics without verbose logging
                         correlation_analysis['agreement_metrics'][baseline_name][task_name][dataset_name] = agreement_metrics
                         
                     except Exception as e:
@@ -836,7 +816,6 @@ class SOTAComparisonExperiment:
         for task_name in self.results['chatgpt_results'].keys():
             performance_comparison['task_performance'][task_name] = {}
             
-            # Get ChatGPT performance
             chatgpt_performances = []
             for dataset_name, dataset_results in self.results['chatgpt_results'][task_name].items():
                 if 'performance_metrics' in dataset_results:
@@ -996,19 +975,16 @@ class SOTAComparisonExperiment:
         """Generate comprehensive comparison visualizations."""
         self.logger.info("Generating comparison visualizations")
         
-        # Create output directory and figures subdirectory
         self.output_dir.mkdir(parents=True, exist_ok=True)
         viz_dir = self.output_dir / "figures"
         viz_dir.mkdir(parents=True, exist_ok=True)
         
         try:
-            # Standard visualizations
             self._create_correlation_heatmap(viz_dir)
             self._create_baseline_performance_chart(viz_dir)
             self._create_correlation_scatter_plots(viz_dir)
             self._create_method_ranking_chart(viz_dir)
             
-            # Enhanced analysis visualizations
             self._create_cost_analysis_chart(viz_dir)
             self._create_processing_time_comparison(viz_dir)
             self._create_agreement_analysis_charts(viz_dir)
@@ -1017,7 +993,6 @@ class SOTAComparisonExperiment:
             self._create_correlation_matrix_3d(viz_dir)
             self._create_performance_radar_chart(viz_dir)
             
-            # NEW: Additional advanced visualizations
             self._create_correlation_stability_analysis(viz_dir)
             self._create_performance_evolution_timeline(viz_dir)
             self._create_baseline_robustness_analysis(viz_dir)
@@ -1111,14 +1086,12 @@ class SOTAComparisonExperiment:
     
     def _create_baseline_performance_chart(self, viz_dir: Path):
         """Create baseline performance comparison chart."""
-        # Extract correlation summary data
         correlation_summary = self.results['correlation_analysis'].get('correlation_summary', {})
         baseline_avg_correlations = correlation_summary.get('baseline_average_correlations', {})
         
         if not baseline_avg_correlations:
             return
         
-        # Create bar chart
         baselines = list(baseline_avg_correlations.keys())
         correlations = list(baseline_avg_correlations.values())
         
@@ -1140,7 +1113,6 @@ class SOTAComparisonExperiment:
             textposition='auto'
         ))
         
-        # Add correlation strength reference lines
         fig.add_hline(y=0.7, line_dash="dash", line_color="green",
                      annotation_text="Strong correlation", annotation_position="right")
         fig.add_hline(y=0.5, line_dash="dash", line_color="orange",
@@ -1263,13 +1235,11 @@ class SOTAComparisonExperiment:
         
         rankings = method_rankings['by_correlation_strength']
         
-        # Create ranking chart
         baselines = [item['baseline'] for item in rankings]
         correlations = [abs(item['avg_correlation']) for item in rankings]
         
         fig = go.Figure()
         
-        # Create horizontal bar chart
         fig.add_trace(go.Bar(
             y=baselines,
             x=correlations,
@@ -1524,7 +1494,6 @@ class SOTAComparisonExperiment:
         
     def _create_consistency_performance_chart(self, viz_dir: Path):
         """Create consistency rating specific performance chart."""
-        # Load baseline results from separate files if not in main results
         self._load_baseline_results_for_visualization()
         
         # Check if we have consistency_rating data - improved detection logic
@@ -1547,7 +1516,6 @@ class SOTAComparisonExperiment:
                 self.logger.debug(f"  {dataset}: {prediction_count} predictions")
         
         if not has_consistency_data:
-            # Create placeholder plot with informative message
             fig = go.Figure()
             fig.add_annotation(
                 text="No consistency rating data available.<br>Run with --task consistency_rating to generate this chart.",
@@ -1579,13 +1547,10 @@ class SOTAComparisonExperiment:
             if 'consistency_rating' in self.results.get('chatgpt_results', {}):
                 chatgpt_data = self.results['chatgpt_results']['consistency_rating'].get(dataset, {})
                 predictions = chatgpt_data.get('predictions', [])
-                # Extract numerical scores from predictions
                 scores = []
                 for pred in predictions:
                     try:
-                        # Handle string representations of RatingResult objects
                         if isinstance(pred, str) and 'prediction=' in pred:
-                            # Extract prediction value from string representation
                             match = re.search(r'prediction=([0-9.]+)', pred)
                             if match:
                                 scores.append(float(match.group(1)))
@@ -1594,7 +1559,6 @@ class SOTAComparisonExperiment:
                         elif hasattr(pred, 'rating') and isinstance(pred.rating, (int, float)):
                             scores.append(float(pred.rating))
                         elif isinstance(pred, dict):
-                            # Handle dictionary format
                             if 'prediction' in pred and isinstance(pred['prediction'], (int, float)):
                                 scores.append(float(pred['prediction']))
                             elif 'rating' in pred and isinstance(pred['rating'], (int, float)):
@@ -1611,7 +1575,6 @@ class SOTAComparisonExperiment:
                     chatgpt_performance[dataset] = np.mean(scores)
                     self.logger.debug(f"ChatGPT {dataset} consistency: {np.mean(scores):.2f} (from {len(scores)} scores)")
         
-        # Add ChatGPT performance if available
         if chatgpt_performance:
             fig.add_trace(go.Bar(
                 name='ChatGPT',
@@ -1622,7 +1585,6 @@ class SOTAComparisonExperiment:
                 textposition='auto',
             ))
         
-        # Add baseline performance
         colors = {'factcc': '#4ECDC4', 'bertscore': '#45B7D1', 'rouge': '#96CEB4'}
         
         for baseline in baselines:
@@ -1637,9 +1599,7 @@ class SOTAComparisonExperiment:
                         
                         for pred in predictions:
                             try:
-                                # Handle string representations of BaselineResult objects
                                 if isinstance(pred, str) and 'prediction=' in pred:
-                                    # Extract prediction value from string representation
                                     # Handle both regular floats and numpy.float64
                                     match = re.search(r'prediction=(?:np\.float64\()?([0-9.]+)(?:\))?', pred)
                                     if match:
@@ -1736,7 +1696,6 @@ class SOTAComparisonExperiment:
                 if 'cost' in dataset_data:
                     cost_breakdown[task_name][dataset_name] = dataset_data['cost']
         
-        # Create cost breakdown chart
         fig = go.Figure()
         
         datasets = []
@@ -1846,7 +1805,6 @@ class SOTAComparisonExperiment:
             
         agreement_metrics = self.results['correlation_analysis']['agreement_metrics']
         
-        # Create agreement metrics comparison
         fig = make_subplots(
             rows=2, cols=2,
             subplot_titles=['Agreement Rates', "Cohen's Kappa", 'Precision', 'Recall'],
@@ -1874,7 +1832,6 @@ class SOTAComparisonExperiment:
         colors = {'factcc': '#4ECDC4', 'bertscore': '#45B7D1', 'rouge': '#96CEB4'}
         bar_colors = [colors.get(baseline, '#888888') for baseline in baselines]
         
-        # Add traces
         fig.add_trace(go.Bar(x=baselines, y=agreements, marker_color=bar_colors, showlegend=False), row=1, col=1)
         fig.add_trace(go.Bar(x=baselines, y=kappas, marker_color=bar_colors, showlegend=False), row=1, col=2)
         fig.add_trace(go.Bar(x=baselines, y=precisions, marker_color=bar_colors, showlegend=False), row=2, col=1)
@@ -2008,13 +1965,11 @@ class SOTAComparisonExperiment:
         if len(datasets) < 2:
             return
             
-        # Create comparison of performance across datasets
         fig = make_subplots(
             rows=1, cols=len(datasets),
             subplot_titles=[f'{dataset.upper()}' for dataset in datasets]
         )
         
-        # Get baseline average correlations for each dataset
         for col, dataset in enumerate(datasets, 1):
             baseline_correlations = {}
             
@@ -2118,7 +2073,6 @@ class SOTAComparisonExperiment:
         if 'correlation_analysis' not in self.results:
             return
             
-        # Get baseline performance data
         correlation_summary = self.results['correlation_analysis'].get('correlation_summary', {})
         baseline_avg_correlations = correlation_summary.get('correlations', {}).get('baseline_average_correlations', {})
         baseline_avg_agreement = correlation_summary.get('agreement_metrics', {}).get('baseline_average_agreement', {})
@@ -2166,7 +2120,6 @@ class SOTAComparisonExperiment:
         norm_speeds = normalize_dict(baseline_speeds)
         norm_coverage = normalize_dict(baseline_coverage)
         
-        # Create radar chart for each baseline
         colors = {'factcc': '#4ECDC4', 'bertscore': '#45B7D1', 'rouge': '#96CEB4'}
         
         for baseline_name in set(list(norm_correlations.keys()) + list(norm_agreement.keys())):
@@ -2297,7 +2250,6 @@ class SOTAComparisonExperiment:
         if 'chatgpt_results' not in self.results:
             return
             
-        # Create timeline data
         timeline_data = []
         
         for task_name, task_data in self.results['chatgpt_results'].items():
@@ -2500,7 +2452,6 @@ class SOTAComparisonExperiment:
         if not task_difficulty:
             return
             
-        # Create heatmap
         tasks = list(task_difficulty.keys())
         metrics = ['low_performance', 'high_cost', 'long_processing', 'baseline_disagreement']
         metric_labels = ['Low Performance', 'High Cost', 'Long Processing', 'Baseline Disagreement']
@@ -2653,7 +2604,6 @@ state-of-the-art baseline methods across multiple tasks and datasets.
 
 """
         
-        # Add correlation summary
         correlation_summary = self.results.get('correlation_analysis', {}).get('correlation_summary', {})
         
         if correlation_summary:
@@ -2667,14 +2617,12 @@ state-of-the-art baseline methods across multiple tasks and datasets.
                 best_corr = correlation_summary.get('baseline_average_correlations', {}).get(best_baseline, 0)
                 report += f"- **Best Correlating Baseline**: {best_baseline} ({best_corr:.4f})\n\n"
         
-        # Add detailed baseline performance
         baseline_avg_correlations = correlation_summary.get('baseline_average_correlations', {})
         if baseline_avg_correlations:
             report += "### Baseline Performance Summary\n\n"
             
             for baseline, correlation in sorted(baseline_avg_correlations.items(), 
                                                key=lambda x: abs(x[1]), reverse=True):
-                # Handle case where baseline might be an object instead of string
                 try:
                     baseline_name = baseline.upper() if isinstance(baseline, str) else str(baseline).upper()
                 except:
@@ -2703,7 +2651,6 @@ state-of-the-art baseline methods across multiple tasks and datasets.
                         report += f"- **{method_name.upper()} Correlation**: {correlation:.4f}\n"
                 report += "\n"
         
-        # Add statistical analysis
         statistical_analysis = self.results.get('statistical_analysis', {})
         significance_summary = statistical_analysis.get('significance_summary', {})
         
@@ -2713,7 +2660,6 @@ state-of-the-art baseline methods across multiple tasks and datasets.
             report += f"- **Significance Rate**: {significance_summary.get('significance_rate', 0):.2f}\n"
             report += f"- **Interpretation**: {significance_summary.get('interpretation', 'No interpretation available')}\n\n"
         
-        # Add performance insights
         performance_insights = performance_comparison.get('performance_insights', {})
         
         if performance_insights:
@@ -2738,7 +2684,6 @@ state-of-the-art baseline methods across multiple tasks and datasets.
                     report += f"{i}. **{task.replace('_', ' ').title()}**: {avg_corr:.4f} ({difficulty})\n"
                 report += "\n"
         
-        # Add recommendations
         report += "## Conclusions and Recommendations\n\n"
         
         # Generate conclusions based on data
