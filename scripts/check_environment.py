@@ -24,7 +24,6 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Setup logging
@@ -184,7 +183,6 @@ class EnvironmentChecker:
         
         results = {}
         
-        # Check directories
         for directory in required_dirs:
             dir_path = self.project_root / directory
             if dir_path.exists() and dir_path.is_dir():
@@ -194,7 +192,6 @@ class EnvironmentChecker:
                 logger.error(f"✗ Directory missing: {directory}")
                 results[f"dir_{directory}"] = False
         
-        # Check files
         for file_path in required_files:
             full_path = self.project_root / file_path
             if full_path.exists() and full_path.is_file():
@@ -214,7 +211,7 @@ class EnvironmentChecker:
         
         # Check raw data
         raw_data_dir = self.project_root / "data" / "raw"
-        datasets = ['cnn_dailymail', 'xsum']
+        datasets = ['frank', 'summeval']
         
         for dataset in datasets:
             dataset_dir = raw_data_dir / dataset
@@ -258,7 +255,6 @@ class EnvironmentChecker:
         
         results = {}
         
-        # Check main config
         config_file = self.project_root / "config" / "default.yaml"
         if config_file.exists():
             try:
@@ -282,7 +278,6 @@ class EnvironmentChecker:
             logger.error("✗ Configuration file missing")
             results['config_valid'] = False
         
-        # Check environment file
         env_file = self.project_root / ".env"
         env_template = self.project_root / ".env.template"
         
@@ -500,7 +495,6 @@ def main():
     
     args = parser.parse_args()
     
-    # Set logging level
     if args.detailed:
         logging.getLogger().setLevel(logging.DEBUG)
     

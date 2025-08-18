@@ -124,7 +124,7 @@ def show_specific_script(script_name):
             "name": "Data Setup",
             "description": "Downloads and prepares datasets for experiments",
             "features": [
-                "Downloads CNN/DailyMail and XSum datasets",
+                "Downloads FRANK and SummEval datasets",
                 "Preprocesses data for all tasks",
                 "Validates data integrity",
                 "Creates processed data files",

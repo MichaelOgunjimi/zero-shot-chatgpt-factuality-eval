@@ -205,7 +205,6 @@ class EnvironmentSetup:
         """Test basic imports to ensure everything works."""
         logger.info("Testing basic imports...")
         
-        # Add project root to path
         sys.path.insert(0, str(self.project_root))
         
         try:
