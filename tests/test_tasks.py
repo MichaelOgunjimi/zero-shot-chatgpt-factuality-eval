@@ -127,7 +127,6 @@ class ConsistencyRatingTask:
             response = self.client.complete(prompt)
             content = response["choices"][0]["message"]["content"].strip()
             
-            # Extract numeric rating
             rating = float(content)
             
             if 0 <= rating <= 100:
