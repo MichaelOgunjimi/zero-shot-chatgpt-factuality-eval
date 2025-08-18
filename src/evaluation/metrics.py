@@ -36,7 +36,6 @@ from scipy.stats import (
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
 
@@ -661,7 +660,6 @@ class StatisticalAnalyzer:
 
     def _compute_icc(self, ratings_a: np.ndarray, ratings_b: np.ndarray) -> float:
         """Compute intraclass correlation coefficient."""
-        # Simple ICC calculation for two raters
         mean_a = np.mean(ratings_a)
         mean_b = np.mean(ratings_b)
         mean_total = (mean_a + mean_b) / 2
@@ -755,7 +753,6 @@ class TaskSpecificMetrics:
 
         results = {}
 
-        # Basic metrics
         accuracy = (tp + tn) / n if n > 0 else 0
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0

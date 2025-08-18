@@ -246,7 +246,6 @@ def validate_evaluation_setup():
         validation_results["components"]["factuality_evaluator"] = f"failed: {e}"
         validation_results["status"] = "error"
 
-    # Check required dependencies
     try:
         import scipy.stats
         import sklearn.metrics

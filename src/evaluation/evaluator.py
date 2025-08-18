@@ -30,7 +30,6 @@ from scipy.stats import pearsonr, spearmanr
 from ..data.loaders import FactualityExample, quick_load_dataset
 from ..data.preprocessors import ProcessedExample, preprocess_for_task
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +52,6 @@ class EvaluationResult:
     performance_metrics: Dict[str, float]
     correlation_metrics: Optional[Dict[str, float]] = None
 
-    # Detailed results
     example_results: Optional[List[Dict[str, Any]]] = None
     failed_examples: Optional[List[Dict[str, Any]]] = None
 
@@ -165,7 +163,6 @@ class BaseEvaluator(ABC):
         self.cache_enabled = cache_enabled
         self.validate_inputs = validate_inputs
 
-        # Create results directory
         self.results_dir.mkdir(exist_ok=True)
 
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
@@ -424,7 +421,6 @@ class BaseEvaluator(ABC):
             if not is_valid:
                 raise ValueError(f"Invalid predictions: {errors}")
 
-        # Extract ground truth labels
         ground_truth = []
         dataset_name = "unknown"
 
@@ -476,7 +472,6 @@ class BaseEvaluator(ABC):
 
         processing_time = time.time() - start_time
 
-        # Create evaluation result
         result = EvaluationResult(
             task_type=self.task_type(),
             dataset_name=dataset_name,
@@ -576,7 +571,6 @@ class EntailmentEvaluator(BaseEvaluator):
 
     def evaluate_predictions(self, predictions: List[Any], examples: List[Any]) -> Dict[str, float]:
         """Evaluate predictions using predictions and examples."""
-        # Extract ground truth from examples
         ground_truth = []
         for example in examples:
             if hasattr(example, 'human_label') and example.human_label is not None:
@@ -685,14 +679,11 @@ class RankingEvaluator(BaseEvaluator):
 
     def evaluate_predictions(self, predictions: List[Any], examples: List[Any]) -> Dict[str, float]:
         """Evaluate predictions using predictions and examples."""
-        # Extract ranking values from RankingResult objects or use raw predictions
         ranking_values = []
         for prediction in predictions:
             if hasattr(prediction, 'ranking'):
-                # Handle RankingResult objects
                 ranking_values.append(prediction.ranking)
             elif hasattr(prediction, 'prediction') and isinstance(prediction.prediction, list):
-                # Handle TaskResult objects with list predictions
                 ranking_values.append(prediction.prediction)
             elif isinstance(prediction, list):
                 # Handle raw list predictions (original functionality)
@@ -700,7 +691,6 @@ class RankingEvaluator(BaseEvaluator):
             else:
                 ranking_values.append(None)
         
-        # Extract ground truth from examples
         ground_truth = []
         for example in examples:
             if hasattr(example, 'human_label') and example.human_label is not None:
@@ -784,14 +774,11 @@ class RatingEvaluator(BaseEvaluator):
 
     def evaluate_predictions(self, predictions: List[Any], examples: List[Any]) -> Dict[str, float]:
         """Evaluate predictions using predictions and examples."""
-        # Extract rating values from RatingResult objects or use raw predictions
         rating_values = []
         for prediction in predictions:
             if hasattr(prediction, 'rating'):
-                # Handle RatingResult objects
                 rating_values.append(prediction.rating)
             elif hasattr(prediction, 'prediction') and isinstance(prediction.prediction, (int, float)):
-                # Handle TaskResult objects with numeric predictions
                 rating_values.append(prediction.prediction)
             elif isinstance(prediction, (int, float)):
                 # Handle raw numeric predictions (original functionality)
@@ -799,7 +786,6 @@ class RatingEvaluator(BaseEvaluator):
             else:
                 rating_values.append(None)
         
-        # Extract ground truth from examples
         ground_truth = []
         for example in examples:
             if hasattr(example, 'human_label') and example.human_label is not None:
