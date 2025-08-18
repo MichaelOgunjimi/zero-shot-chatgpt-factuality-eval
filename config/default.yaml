@@ -1,4 +1,4 @@
-# ChatGPT Factuality Evaluation System - Complete Configuration
+# ChatGPT Factuality Evaluation System - Streamlined Configuration
 # MSc AI Thesis Project - University of Manchester 2025
 # Student: Michael Ogunjimi | Supervisor: Sophia Ananiadou
 
@@ -10,7 +10,6 @@ project:
   institution: "University of Manchester"
   supervisor: "Sophia Ananiadou"
   course: "MSc AI"
-  thesis_deadline: "2025-08-31"
   description: "Zero-shot ChatGPT evaluation for factual consistency in text summarization"
 
 # ===== GLOBAL SETTINGS =====
@@ -18,32 +17,17 @@ global:
   seed: 42
   debug: false
   log_level: "INFO"
-  device: "auto" # auto, cpu, cuda
-  num_workers: 4
+  device: "auto" # auto, cpu, cuda, mps
   cache_enabled: true
 
 # ===== PATHS CONFIGURATION =====
 paths:
   # Data directories
   data_dir: "./data"
-  raw_data_dir: "./data/raw"
-  processed_data_dir: "./data/processed"
   cache_dir: "./data/cache"
-
-  # Results directories
   results_dir: "./results"
-  experiments_dir: "./results/experiments"
   figures_dir: "./results/figures"
-  tables_dir: "./results/tables"
-  logs_dir: "./results/logs"
-
-  # Prompts and configuration
   prompts_dir: "./prompts"
-  config_dir: "./config"
-
-  # Models and checkpoints
-  models_dir: "./models"
-  checkpoints_dir: "./checkpoints"
 
 # ===== CORE TASKS CONFIGURATION =====
 tasks:
@@ -51,531 +35,237 @@ tasks:
   entailment_inference:
     enabled: true
     name: "Entailment Inference"
-    description: "Binary classification of factual consistency (ENTAILMENT vs CONTRADICTION)"
-
-    # Task parameters
+    description: "Binary classification of factual consistency"
     output_format: "binary"
-    valid_labels: ["ENTAILMENT", "CONTRADICTION"]
-    default_label: "CONTRADICTION" # Conservative default
-
-    # Evaluation metrics
     metrics:
       primary: ["accuracy", "f1_score"]
-      secondary: ["precision", "recall", "auc_roc", "confusion_matrix"]
-
-    # Task-specific settings
-    include_confidence: true
-    require_explanation: true
-    max_examples_per_experiment: 1000
+      secondary: ["precision", "recall"]
 
   # Task 2: Summary Ranking
   summary_ranking:
     enabled: true
     name: "Summary Ranking"
     description: "Rank multiple summaries by factual consistency"
-
-    # Task parameters
     output_format: "ranked_list"
-    min_summaries: 2
-    max_summaries: 5
-    default_num_summaries: 3
-
-    # Evaluation metrics
     metrics:
       primary: ["kendall_tau", "spearman_rho"]
-      secondary: ["ndcg", "map", "ranking_accuracy"]
-
-    # Task-specific settings
-    include_confidence: true
-    require_explanation: true
-    handle_ties: true
-    max_examples_per_experiment: 500
+      secondary: ["ndcg", "ranking_accuracy"]
 
   # Task 3: Consistency Rating
   consistency_rating:
     enabled: true
     name: "Consistency Rating"
-    description: "Quantitative rating of factual consistency (0.0-1.0 scale)"
-
-    # Task parameters
+    description: "Rate factual consistency on 0-100 scale"
     output_format: "float"
     scale_min: 0.0
     scale_max: 1.0
-    precision: 2
-    default_rating: 0.5
-
-    # Rating scale definitions
-    scale_labels:
-      1.0: "Perfect factual consistency"
-      0.8: "Minor factual issues"
-      0.6: "Some factual errors"
-      0.4: "Multiple factual errors"
-      0.2: "Major factual errors"
-      0.0: "Completely inconsistent"
-
-    # Evaluation metrics
     metrics:
       primary: ["pearson_correlation", "spearman_correlation"]
-      secondary: ["mae", "rmse", "r_squared"]
+      secondary: ["mae", "rmse"]
 
-    # Task-specific settings
-    include_confidence: true
-    require_explanation: true
-    max_examples_per_experiment: 1000
-
-# ===== OPENAI/CHATGPT CONFIGURATION =====
+# ===== OPENAI CONFIGURATION =====
 openai:
-  # API key and authentication
-  api_key: "${OPENAI_API_KEY}" # Set in environment variable
-  # Model settings - Use get_config(model='model-name') for model-specific configuration
+  api_key: "${OPENAI_API_KEY}"
+
   models:
-    # Example: primary: "gpt-4.1-mini"  # Set via model-specific config
-    # Example: fallbacks: ["gpt-4o-mini", "o1-mini"]  # Set via model-specific config
-    primary: "gpt-4.1-mini" # Default primary model
+    primary: "gpt-4.1-mini"
     fallbacks: ["gpt-4o-mini", "o1-mini"]
 
-  # API configuration
   api:
     base_url: "https://api.openai.com/v1"
     timeout: 120
     max_retries: 5
     retry_delay: 5.0
-    backoff_factor: 2.5
 
-  # Rate limiting - Use get_config(model='model-name') for tier-specific limits
   rate_limits:
-    # Example values for reference (actual values set by model-specific config):
-    # Tier 2 gpt-4.1-mini: 4500 RPM, 1800000 TPM, 648000 RPD
-    # Tier 2 gpt-4o-mini: 1800 RPM, 1800000 TPM, 288000 RPD
-    # Tier 2 o1-mini: 1800 RPM, 1800000 TPM, 288000 RPD
-    # Tier 2 gpt-4o: 4500 RPM, 405000 TPM, 648000 RPD
-    requests_per_minute: null # Must be set via model-specific configuration
-    tokens_per_minute: null # Must be set via model-specific configuration
-    requests_per_day: null # Must be set via model-specific configuration
+    requests_per_minute: null # Set via model-specific config
+    tokens_per_minute: null # Set via model-specific config
     concurrent_requests: 10
 
-  # Generation parameters (optimized for GPT-4.1 Mini)
   generation:
-    temperature: 0.0 # Deterministic for evaluation consistency
-    max_tokens: 8192 # High limit for proper chain-of-thought reasoning
-    adaptive_tokens: true # Adjust based on input length and prompt type
-    min_tokens: 1024 # Minimum for zero-shot
-    max_tokens_cot: 8192 # Maximum for chain-of-thought
+    temperature: 0.0
+    max_tokens: 8192
     top_p: 1.0
     frequency_penalty: 0.0
     presence_penalty: 0.0
-    stop_sequences: []
 
-  # Cost management (optimized for GPT-4.1 Mini pricing)
   cost_control:
-    total_budget: 200.0 # Total budget in USD (sufficient for full thesis)
-    daily_budget: 50.0 # Daily spending limit
-    warning_threshold: 0.8 # Warn at 80% of budget
-    hard_limit: true # Stop at budget limit
+    total_budget: 200.0
+    daily_budget: 50.0
     track_usage: true
-    save_usage_logs: true
-    cost_per_1k_tokens:
-      gpt-4.1-mini:
-        input: 0.0004 # $0.40 per 1M tokens
-        output: 0.0016 # $1.60 per 1M tokens
-      o1-mini:
-        input: 0.003 # $3.00 per 1M tokens
-        output: 0.012 # $12.00 per 1M tokens
-      gpt-4o:
-        input: 0.0025 # $2.50 per 1M tokens
-        output: 0.01 # $10.00 per 1M tokens
 
-# ===== PROMPT CONFIGURATION =====
+# ===== PROMPTS CONFIGURATION =====
 prompts:
-  # Prompt types
-  types: ["zero_shot", "chain_of_thought"]
-
-  # Template settings
   templates:
     directory: "./prompts"
-    encoding: "utf-8"
+    max_length: 8000
     validate_format: true
-    max_length: 8000 # Maximum prompt length in tokens
-
-  # Prompt engineering settings
-  engineering:
-    include_task_definition: true
-    include_examples: false # Pure zero-shot evaluation
-    include_confidence_request: true
-    include_explanation_request: true
-    include_output_format: true
-
-  # Chain-of-thought specific settings
-  chain_of_thought:
-    reasoning_steps:
-      ["extract_facts", "compare_claims", "identify_errors", "make_judgment"]
-    step_labels:
-      [
-        "Key facts in source",
-        "Claims in summary",
-        "Fact checking",
-        "Final judgment",
-      ]
-    require_structured_output: true
 
 # ===== DATASETS CONFIGURATION =====
 datasets:
-  # CNN/DailyMail Dataset
-  cnn_dailymail:
+  frank:
     enabled: true
-    name: "CNN/DailyMail"
-    huggingface_name: "ccdv/cnn_dailymail"
-    version: "3.0.0"
+    name: "FRANK"
+    description: "Human-annotated factuality labels"
+    domain: "news"
 
-    # Data settings
-    splits: ["test"]
-    sample_sizes:
-      development: 50 # For testing and development
-      evaluation: 500 # For main experiments
-      full: null # Use full dataset
-
-    # Processing parameters
-    preprocessing:
-      max_source_length: 1024
-      max_summary_length: 256
-      min_summary_length: 10
-      remove_duplicates: true
-      clean_text: true
-      normalize_whitespace: true
-
-    # Task-specific data generation
-    task_data:
-      entailment_inference:
-        generate_negatives: true
-        negative_ratio: 0.3
-        negative_methods: ["entity_swap", "fact_negation", "hallucination"]
-
-      summary_ranking:
-        generate_rankings: true
-        summaries_per_source: 4
-        quality_levels: ["high", "medium", "low", "very_low"]
-
-      consistency_rating:
-        annotation_required: true
-        rating_scale: [0.0, 1.0]
-        inter_annotator_agreement_target: 0.7
-
-  # XSum Dataset
-  xsum:
+  summeval:
     enabled: true
-    name: "XSum"
-    huggingface_name: "EdinburghNLP/xsum"
+    name: "SummEval"
+    description: "Human consistency ratings"
+    domain: "news"
 
-    # Data settings
-    splits: ["test"]
-    sample_sizes:
-      development: 50
-      evaluation: 500
-      full: null
-
-    # Processing parameters
-    preprocessing:
-      max_source_length: 1024
-      max_summary_length: 128
-      min_summary_length: 8
-      remove_duplicates: true
-      clean_text: true
-      normalize_whitespace: true
-
-    # Task-specific data generation
-    task_data:
-      entailment_inference:
-        generate_negatives: true
-        negative_ratio: 0.3
-        negative_methods: ["entity_swap", "fact_negation"]
-
-      summary_ranking:
-        generate_rankings: true
-        summaries_per_source: 3
-        quality_levels: ["high", "medium", "low"]
-
-      consistency_rating:
-        annotation_required: true
-        rating_scale: [0.0, 1.0]
-
-# ===== SOTA BASELINES CONFIGURATION =====
+# ===== BASELINES CONFIGURATION =====
 baselines:
-  # Enable SOTA methods for comparison
   enabled: true
 
-  # FactCC
   factcc:
     enabled: true
     model_name: "manueldeprada/FactCC"
     batch_size: 8
-    device: "auto"
     cache_predictions: true
 
-  # BERTScore
   bertscore:
     enabled: true
     model_type: "roberta-large"
     num_layers: 17
     batch_size: 16
-    device: "auto"
     cache_predictions: true
 
-  # ROUGE
   rouge:
     enabled: true
-    rouge_types: ["rouge1", "rouge2", "rougeL", "rougeLsum"]
+    rouge_types: ["rouge1", "rouge2", "rougeL"]
     use_stemmer: true
-    split_summaries: true
 
 # ===== EVALUATION CONFIGURATION =====
 evaluation:
-  # Experimental design
-  design:
-    cross_validation: false # Not applicable for this thesis
-    bootstrap_samples: 1000
+  statistics:
     confidence_level: 0.95
     significance_level: 0.05
-    random_seed: 42
 
-  # Statistical testing
-  statistics:
-    tests:
-      mcnemar_test: true # For binary classification comparison
-      wilcoxon_signed_rank: true # For paired comparisons
-      mann_whitney_u: true # For independent samples
-      chi_square: true # For categorical data
-
-    corrections:
-      bonferroni: true # Multiple comparisons correction
-      holm: true # Alternative correction method
-
-    effect_sizes:
-      cohens_d: true # Effect size for mean differences
-      cramers_v: true # Effect size for categorical associations
-
-  # Performance analysis
-  analysis:
-    calculate_confidence_intervals: true
-    perform_error_analysis: true
-    generate_confusion_matrices: true
-    compute_correlation_matrices: true
-
-  # Human evaluation (when applicable)
-  human_evaluation:
-    enabled: false # Enable when ready
-    sample_size: 200
-    num_annotators: 2
-    target_agreement: 0.7 # Krippendorff's alpha
-    annotation_interface: "custom"
-
-# ===== EXPERIMENT CONFIGURATION =====
+# ===== EXPERIMENTS CONFIGURATION =====
 experiments:
-  # General settings
-  general:
-    batch_size: 10 # Process examples in batches
-    checkpoint_frequency: 50 # Save progress every N examples
-    save_intermediate: true # Save intermediate results
-    parallel_processing: false # Sequential for cost control
-
-  # Experiment types
-  main_experiments:
-    # Core ChatGPT evaluation experiment
-    chatgpt_evaluation:
-      enabled: true
-      name: "ChatGPT Factuality Evaluation"
-      description: "Core ChatGPT performance assessment across factuality tasks"
-      sample_size: 1000
-      tasks: ["entailment_inference", "summary_ranking", "consistency_rating"]
-      datasets: ["cnn_dailymail", "xsum"]
-      prompt_type: "zero_shot"
-
-      # Mode-specific sample sizes
-      sample_sizes:
-        quick_test: 20
-        development: 100
-        comprehensive: 1000
-        thesis_scale: 10000
-
-    # Zero-shot vs Chain-of-Thought comparison
-    prompt_comparison:
-      enabled: true
-      name: "Prompt Type Comparison"
-      description: "Compare zero-shot vs chain-of-thought prompts"
-      sample_size: 200
-      tasks: ["entailment_inference", "summary_ranking", "consistency_rating"]
-      datasets: ["cnn_dailymail", "xsum"]
-
-      # Mode-specific sample sizes
-      sample_sizes:
-        quick_test: 10
-        development: 50
-        comprehensive: 500
-        thesis_scale: 1500
-
-    # Task performance analysis
-    task_analysis:
-      enabled: true
-      name: "Task Performance Analysis"
-      description: "Analyze ChatGPT performance across three tasks"
-      sample_size: 500
-      prompt_types: ["zero_shot", "chain_of_thought"]
-      datasets: ["cnn_dailymail", "xsum"]
-
-    # SOTA comparison
-    sota_comparison:
-      enabled: true
-      name: "SOTA Baseline Comparison"
-      description: "Compare ChatGPT with traditional metrics"
-      sample_size: 300
-      baselines: ["factcc", "bertscore", "rouge"]
-      tasks: ["entailment_inference", "consistency_rating"]
-
-      # Mode-specific sample sizes
-      sample_sizes:
-        quick_test: 20
-        development: 100
-        comprehensive: 500
-        thesis_scale: 2000
-
-  # Ablation studies
-  ablation_studies:
-    prompt_variations:
-      enabled: false # Optional advanced analysis
-      variations: ["with_examples", "without_confidence", "different_scales"]
-
-    model_comparison:
-      enabled: false # Optional if budget allows
-      models: ["gpt-4.1-mini", "o1-mini", "gpt-4o"]
-
-# ===== OUTPUT CONFIGURATION =====
-output:
-  # Results formats
-  formats:
-    json: true
-    csv: true
-    excel: true
-    pickle: false
-
-  # Visualization
-  visualization:
-    generate_plots: true
-    plot_formats: ["png", "pdf"]
-    plot_dpi: 300
-    style: "publication"
-    color_palette: "husl"
-
-  # Tables
-  tables:
-    latex: true
-    markdown: true
-    csv: true
-    significant_digits: 3
-
-  # Reports
-  reports:
-    auto_generate: false # Manual control for thesis
-    include_error_analysis: true
-    include_cost_analysis: true
-    include_statistical_tests: true
-
-# ===== LOGGING CONFIGURATION =====
-logging:
-  # General logging
-  level: "INFO"
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-
-  # File logging
-  file:
+  # Global experiment settings
+  global:
     enabled: true
-    filename: "chatgpt_evaluation.log"
-    max_size: "10MB"
-    backup_count: 5
-    rotation: "size"
+    output_dir: "./results/experiments"
+    batch_size: 5
+    save_intermediate: true
 
-  # Console logging
-  console:
+  # Model configurations
+  models:
+    "gpt-4.1-mini":
+      enabled: true
+      name: "GPT-4.1-mini"
+      provider: "openai"
+      model_id: "gpt-4.1-mini"
+      api_config:
+        base_url: "https://api.openai.com/v1"
+        api_key: "${OPENAI_API_KEY}"
+        timeout: 120
+        max_retries: 5
+        use_dynamic_config: true
+        tier: "tier2"
+      generation_params:
+        temperature: 0.0
+        max_tokens: 8192
+        top_p: 1.0
+      cost_tracking: true
+
+    "qwen2.5:7b":
+      enabled: true
+      name: "Qwen2.5:7b"
+      provider: "ollama"
+      model_id: "qwen2.5:7b"
+      api_config:
+        base_url: "${OLLAMA_HOST}/v1"
+        api_key: "ollama"
+        timeout: 180
+        max_retries: 3
+      generation_params:
+        temperature: 0.0
+        max_tokens: 8192
+        top_p: 1.0
+      cost_tracking: false
+
+    "llama3.1:8b":
+      enabled: true
+      name: "Llama3.1:8b"
+      provider: "ollama"
+      model_id: "llama3.1:8b"
+      api_config:
+        base_url: "${OLLAMA_HOST}/v1"
+        api_key: "ollama"
+        timeout: 180
+        max_retries: 3
+      generation_params:
+        temperature: 0.0
+        max_tokens: 8192
+        top_p: 1.0
+      cost_tracking: false
+
+  # Multi-LLM Evaluation Experiment
+  llm_evaluation:
     enabled: true
-    level: "INFO"
-    colored: true
+    name: "Multi-LLM Factuality Evaluation"
+    default_models: ["gpt-4.1-mini", "qwen2.5:7b", "llama3.1:8b"]
+    sample_size: 1000
+    datasets: ["frank", "summeval"]
 
-  # Experiment logging
-  experiment:
-    log_predictions: true
-    log_api_calls: true
-    log_costs: true
-    log_errors: true
-    detailed_timing: true
+    tasks:
+      entailment_inference:
+        enabled: true
+        sample_size: 1000
+        metrics: ["accuracy", "f1_score", "precision", "recall"]
 
-# ===== REPRODUCIBILITY =====
-reproducibility:
-  # Seed control
-  seeds:
-    global_seed: 42
-    numpy_seed: 42
-    torch_seed: 42
-    random_seed: 42
+      summary_ranking:
+        enabled: true
+        sample_size: 1000
+        metrics: ["kendall_tau", "spearman_rho", "ndcg"]
 
-  # Versioning
-  tracking:
-    save_config: true
-    save_code_hash: true
-    save_environment: true
-    save_dependencies: true
+      consistency_rating:
+        enabled: true
+        sample_size: 1000
+        metrics: ["pearson_correlation", "spearman_correlation", "mae", "rmse"]
 
-  # Deterministic settings
-  deterministic:
-    torch_deterministic: true
-    cuda_deterministic: true
-    openai_deterministic: true # temperature=0.0
+    sample_sizes:
+      quick_test: 50
+      development: 200
+      comprehensive: 1000
+      full_scale: 2000
 
-# ===== SAFETY AND ETHICS =====
-safety:
-  # Data protection
-  data_protection:
-    anonymize_outputs: true
-    no_personal_data: true
-    secure_storage: true
+  # SOTA Baseline Comparison
+  sota_comparison:
+    enabled: true
+    name: "SOTA Baseline Comparison"
+    default_models: ["gpt-4.1-mini"]
+    sample_size: 500
+    datasets: ["frank", "summeval"]
 
-  # API safety
-  api_safety:
-    respect_rate_limits: true
-    implement_backoff: true
-    monitor_costs: true
-    emergency_stop: true
+    baselines:
+      factcc:
+        enabled: true
+        batch_size: 8
+      bertscore:
+        enabled: true
+        batch_size: 16
+      rouge:
+        enabled: true
 
-  # Content filtering
-  content:
-    filter_inappropriate: true
-    check_bias: true
-    log_concerning_outputs: true
+    tasks:
+      entailment_inference:
+        enabled: true
+        sample_size: 500
+        comparison_metrics: ["accuracy", "f1_score", "cohen_kappa"]
 
-# ===== THESIS-SPECIFIC SETTINGS =====
-thesis:
-  # Timeline and milestones
-  timeline:
-    week1_target: 100 # Examples evaluated
-    week2_target: 300
-    week3_target: 600
-    week4_target: 1000
-    final_target: 1500
+      consistency_rating:
+        enabled: true
+        sample_size: 500
+        comparison_metrics:
+          ["pearson_correlation", "spearman_correlation", "mae"]
 
-  # Results for thesis chapters
-  results_needed:
-    methodology_examples: 20
-    results_main_table: 500
-    error_analysis_cases: 50
-    discussion_examples: 30
-
-  # Publication requirements
-  publication:
-    figures_dpi: 300
-    table_precision: 3
-    statistical_reporting: "apa"
-    significance_threshold: 0.05
-
-  # Academic integrity
-  integrity:
-    cite_all_sources: true
-    report_limitations: true
-    share_negative_results: true
-    provide_reproducibility_info: true
+    sample_sizes:
+      quick_test: 25
+      development: 100
+      comprehensive: 500
+      full_scale: 1000

@@ -116,15 +116,3 @@ example_usage_gpt4o: |
   # - 4,500 requests per minute
   # - 405,000 tokens per minute (lower than others due to model)
   # - 648,000 requests per day (conservative estimate)
-
-# MIGRATION FROM OLD HARDCODED SYSTEM:
-# ====================================
-#
-# OLD (hardcoded):
-#   config = get_config()  # Always used gpt-4.1-mini with tier 1 limits
-#
-# NEW (dynamic):
-#   config = get_config(model="gpt-4.1-mini", tier="tier2")  # Explicit model and tier
-#   config = get_config(model="gpt-4o-mini", tier="tier2")   # Switch models easily
-#   config = get_config(model="o1-mini", tier="tier2")       # Use reasoning model
-#   config = get_config(model="gpt-4o", tier="tier2")        # Use most capable model
