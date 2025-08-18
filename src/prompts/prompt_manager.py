@@ -55,7 +55,6 @@ class PromptTemplate:
         if self.created_date is None:
             self.created_date = datetime.now().isoformat()
 
-        # Extract variables from template if not provided
         if not self.variables:
             self.variables = self._extract_variables()
 
@@ -79,7 +78,6 @@ class PromptTemplate:
         """
         errors = []
 
-        # Check for basic structure
         if not self.template.strip():
             errors.append("Template cannot be empty")
 
@@ -118,7 +116,6 @@ class PromptTemplate:
                     "Chain-of-thought template should include reasoning indicators"
                 )
 
-        # Check variable consistency
         template_vars = set(self._extract_variables())
         declared_vars = set(self.variables)
 
@@ -162,7 +159,6 @@ class FormattedPrompt:
 
     def estimate_tokens(self) -> int:
         """Rough token estimation for cost calculation."""
-        # Simple estimation: ~4 characters per token
         estimated = len(self.prompt_text) // 4
         self.token_count = estimated
         return estimated
@@ -214,7 +210,6 @@ class StandardPromptFormatter(BasePromptFormatter):
             # Clean and normalize variables
             cleaned_kwargs = self._clean_variables(kwargs)
 
-            # Format the template
             formatted = template.format(**cleaned_kwargs)
 
             # Post-process for consistency
@@ -249,7 +244,6 @@ class StandardPromptFormatter(BasePromptFormatter):
 
     def _post_process(self, formatted_prompt: str) -> str:
         """Post-process formatted prompt for consistency."""
-        # Remove excessive whitespace
         formatted_prompt = re.sub(r"\n\s*\n\s*\n", "\n\n", formatted_prompt)
         formatted_prompt = re.sub(r"[ \t]+", " ", formatted_prompt)
 
@@ -273,18 +267,15 @@ class StandardPromptFormatter(BasePromptFormatter):
         """
         errors = []
 
-        # Extract required variables from template
         required_vars = set(re.findall(r"\{(\w+)\}", template))
         provided_vars = set(variables.keys())
 
-        # Check for missing variables
         missing_vars = required_vars - provided_vars
         if missing_vars:
             errors.append(
                 f"Missing required variables: {', '.join(sorted(missing_vars))}"
             )
 
-        # Check for empty variables
         empty_vars = [
             var
             for var, value in variables.items()
@@ -348,13 +339,11 @@ class ChainOfThoughtFormatter(BasePromptFormatter):
 
     def _enhance_reasoning_sections(self, formatted_prompt: str) -> str:
         """Enhance reasoning sections for clarity."""
-        # Add clear section separators
         enhanced = formatted_prompt
 
         # Ensure numbered steps are well-formatted
         enhanced = re.sub(r"(\d+)\.\s*([A-Z])", r"\1. \2", enhanced)
 
-        # Add emphasis to conclusion section
         enhanced = re.sub(
             r"(conclusion|answer|final|decision):\s*",
             r"\1: ",
@@ -489,11 +478,9 @@ class PromptManager:
             if template_name not in self.templates:
                 self.logger.info(f"Creating default template: {template_name}")
 
-                # Create template object
                 template = PromptTemplate(**template_data)
                 self.templates[template_name] = template
 
-                # Save to disk
                 self._save_template_to_disk(template)
 
     def _get_default_templates(self) -> Dict[str, Dict[str, Any]]:
@@ -707,7 +694,6 @@ Rating (0-100): """,
 
         template = self.templates[template_name]
 
-        # Get appropriate formatter
         formatter = self.formatters.get(prompt_type, self.formatters["standard"])
 
         # Validate variables
@@ -728,17 +714,14 @@ Rating (0-100): """,
                 )
                 return formatted_prompt
 
-        # Format the prompt
         try:
             formatted_text = formatter.format_prompt(template.template, **variables)
 
-            # Check length limits
             if len(formatted_text) > self.max_prompt_length:
                 self.logger.warning(
                     f"Prompt exceeds max length: {len(formatted_text)} > {self.max_prompt_length}"
                 )
 
-            # Create formatted prompt object
             formatted_prompt = FormattedPrompt(
                 prompt_text=formatted_text,
                 template_name=template_name,

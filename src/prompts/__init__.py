@@ -31,11 +31,9 @@ __all__ = [
     # Data structures
     "PromptTemplate",
     "FormattedPrompt",
-    # Formatters
     "BasePromptFormatter",
     "StandardPromptFormatter",
     "ChainOfThoughtFormatter",
-    # Main manager
     "PromptManager",
     # Utility functions
     "create_prompt_manager",
@@ -134,7 +132,6 @@ Please analyze this step-by-step:
 Analysis:
 1. Key Facts in Source: """
 
-    # Summary Ranking Templates
     templates[
         "summary_ranking_zero_shot"
     ] = """Rank the following summaries by their factual consistency with the source document.
@@ -253,7 +250,6 @@ def validate_template_variables(template: str, variables: dict) -> tuple:
     """
     import re
 
-    # Extract required variables from template
     required_vars = set(re.findall(r"\{(\w+)\}", template))
     provided_vars = set(variables.keys())
 
@@ -293,15 +289,12 @@ def optimize_prompt_length(prompt_content: str, max_tokens: int = 3000) -> str:
     if estimated_tokens <= max_tokens:
         return prompt_content
 
-    # Simple optimization: remove extra whitespace and truncate if needed
     optimized = prompt_content.strip()
 
-    # Remove multiple newlines
     import re
 
     optimized = re.sub(r"\n\s*\n\s*\n", "\n\n", optimized)
 
-    # Remove extra spaces
     optimized = re.sub(r" +", " ", optimized)
 
     # If still too long, truncate source/summary sections
@@ -336,7 +329,6 @@ def create_prompt_variations(base_template: str, variations: list = None) -> dic
 
     for variation in variations:
         if variation == "concise":
-            # Remove explanatory text
             concise = base_template.replace(
                 "Please analyze this step-by-step:", "Analyze:"
             )
@@ -344,7 +336,6 @@ def create_prompt_variations(base_template: str, variations: list = None) -> dic
             templates["concise"] = concise
 
         elif variation == "detailed":
-            # Add more specific instructions
             detailed = base_template.replace("Task:", "Task: Carefully and thoroughly")
             templates["detailed"] = detailed
 
@@ -379,13 +370,11 @@ def setup_default_prompts(config: dict, templates_dir: str = "./prompts") -> boo
 
     templates_path = Path(templates_dir)
 
-    # Create task directories
     tasks = get_supported_tasks()
     for task in tasks:
         task_dir = templates_path / task
         task_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get default templates
     default_templates = create_default_templates()
 
     # Write template files

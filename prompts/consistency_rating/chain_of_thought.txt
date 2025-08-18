@@ -1,24 +1,28 @@
-SYSTEM: You are a factual consistency evaluator. Rate summaries on factual accuracy (0-100 scale).
+Rate factual consistency on scale 0-100.
 
-TASK: Evaluate factual consistency between source and summary.
+90-100 = Perfect consistency (all claims correct, no errors)
+75-89 = High consistency (1-2 very minor issues, mostly accurate)
+50-74 = Medium consistency (several noticeable errors or omissions)
+25-49 = Low consistency (many significant errors, unreliable)
+0-24 = Very low consistency (major inaccuracies, mostly wrong)
 
-Source: {source}
-Summary: {summary}
+Be strict: Even small factual errors should lower the score significantly.
+If you find ANY factual inaccuracies, the score should be below 75.
 
-REASONING PROCESS:
-Let me evaluate step by step:
+SOURCE:
+{source}
 
-1. Summary claims: 
-- List all factual assertions in the summary
+SUMMARY:
+{summary}
 
-2. Verification against source:
-- For each claim, mark as ✓ SUPPORTED, ✗ CONTRADICTED, or ? UNSUPPORTED by source
+Think step by step:
+1. Summary claims:
+2. Check against source:
+3. Calculate score:
 
-3. Score calculation:
-- Calculate percentage of supported claims
-- Adjust for severity of contradictions
+IMPORTANT: End your response with "FINAL RATING: [NUMBER]" where [NUMBER] is an integer from 0 to 100.
+Example: "FINAL RATING: 85"
 
-4. Final assessment:
-- Consider overall factual accuracy
+Do not add any text after the final rating number.
 
-FINAL RATING: [0-100 integer score]
+FINAL RATING:

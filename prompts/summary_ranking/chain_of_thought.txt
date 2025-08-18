@@ -1,29 +1,24 @@
-You are an expert in factual consistency evaluation for text summarization.
+Rank summaries by factual consistency with source (1 = most accurate).
 
-TASK: Rank the following summaries by their factual consistency with the source document (1 = most factually consistent, higher numbers = less consistent).
-
-SOURCE DOCUMENT:
+SOURCE:
 {source_document}
 
-SUMMARIES TO RANK:
+SUMMARIES:
 {summaries}
 
-Let me work through this step by step:
+Think step by step:
+1. Key facts in source:
+2. Evaluate each summary:
+3. Rank by accuracy:
 
-Step 1: Extract key facts from the source document
-- Identify the main factual claims and information
-- These will serve as ground truth for evaluation
+IMPORTANT: End your response with "FINAL RANKING:" followed by ranking numbers separated by commas.
 
-Step 2: Evaluate each summary individually  
-- Check if each summary's claims are supported by the source
-- Identify any contradictions or unsupported information
-- Note any factual errors or distortions
+Format examples:
+- FINAL RANKING: 2, 1, 3
+- FINAL RANKING: 1, 3, 2  
+- FINAL RANKING: 3, 2, 1
 
-Step 3: Compare the summaries
-- Determine which has the highest factual accuracy
-- Consider both correctness and completeness of factual information
-- Rank from most to least factually consistent
+The ranking must contain exactly 3 numbers from 1 to 3.
+Do not add any text after the final ranking.
 
-IMPORTANT: You must rank ALL {num_summaries} summaries. Provide exactly {num_summaries} numbers.
-
-FINAL RANKING: [Only the numbers separated by commas, e.g., "1, 2, 3"]   
+FINAL RANKING:   

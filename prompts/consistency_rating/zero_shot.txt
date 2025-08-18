@@ -1,24 +1,23 @@
-SYSTEM: You are an expert fact-checker specializing in fine-grained consistency evaluation between source texts and summaries. Use rigorous claim-by-claim analysis to produce a single numeric score.
+Rate factual consistency on scale 0-100.
 
-TASK: On a scale of 0–100, rate how many factual claims in the summary are accurately and fully supported by the source document.  
+90-100 = Perfect consistency (all claims correct, no errors)
+75-89 = High consistency (1-2 very minor issues, mostly accurate)
+50-74 = Medium consistency (several noticeable errors or omissions)
+25-49 = Low consistency (many significant errors, unreliable)
+0-24 = Very low consistency (major inaccuracies, mostly wrong)
 
-RATING SCALE:
-• 100 = All claims correct  
-• 75–99 = One or two minor issues  
-• 50–74 = Several moderate errors  
-• 25–49 = Many serious errors  
-• 0–24 = Widespread major inaccuracies  
+Be strict: Even small factual errors should lower the score significantly.
+If you find ANY factual inaccuracies, the score should be below 75.
 
-INSTRUCTIONS:  
-1. Extract each distinct factual claim from the summary.  
-2. For each claim, determine if it is SUPPORTED or CONTRADICTED/UNSUPPORTED by the source.  
-3. Compute: (Number of SUPPORTED claims ÷ Total claims) × 100.  
-4. Provide ONLY: the final score as an integer (0–100).
-
-SOURCE DOCUMENT:
+SOURCE:
 {source}
 
 SUMMARY:
 {summary}
 
-FINAL RATING: 
+IMPORTANT: Your response MUST end with "RATING: [NUMBER]" where [NUMBER] is an integer from 0 to 100.
+Example: "RATING: 85"
+
+Do not add any text after the rating number.
+
+RATING: 
