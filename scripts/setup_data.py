@@ -24,7 +24,6 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
-# Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Setup logging
@@ -46,7 +45,7 @@ class DataSetup:
         results = {}
         
         # Check for raw data
-        raw_datasets = ['cnn_dailymail', 'xsum']
+        raw_datasets = ['frank', 'summeval']
         for dataset in raw_datasets:
             raw_path = self.data_dir / "raw" / dataset
             if raw_path.exists() and any(raw_path.glob("*.json")):
@@ -57,7 +56,7 @@ class DataSetup:
                 results[f"raw_{dataset}"] = False
         
         # Check for processed data
-        processed_datasets = ['cnn_dailymail', 'xsum']
+        processed_datasets = ['frank', 'summeval']
         tasks = ['entailment_inference', 'summary_ranking', 'consistency_rating']
         
         for dataset in processed_datasets:
@@ -83,7 +82,6 @@ class DataSetup:
         try:
             from src.data import download_datasets
             
-            # Set sample sizes based on setup type
             if quick_setup:
                 logger.info("Quick setup: downloading small samples")
                 max_samples = 50
@@ -93,7 +91,7 @@ class DataSetup:
             
             # Download both datasets
             results = download_datasets(
-                datasets=['cnn_dailymail', 'xsum'],
+                datasets=['frank', 'summeval'],
                 data_dir=self.data_dir,
                 max_samples=max_samples,
                 development_mode=quick_setup,
@@ -123,7 +121,7 @@ class DataSetup:
         try:
             from src.data import load_dataset_for_task
             
-            datasets = ['cnn_dailymail', 'xsum']
+            datasets = ['frank', 'summeval']
             tasks = ['entailment_inference', 'summary_ranking', 'consistency_rating']
             
             # Create processed directory
@@ -190,7 +188,7 @@ class DataSetup:
             from src.data import validate_dataset_path, quick_load_dataset
             
             # Validate raw datasets
-            datasets = ['cnn_dailymail', 'xsum']
+            datasets = ['frank', 'summeval']
             all_valid = True
             
             for dataset in datasets:
@@ -345,14 +343,14 @@ class DataSetup:
         availability = self.check_data_availability()
         
         # Download raw datasets if needed
-        if not all(availability.get(f"raw_{dataset}", False) for dataset in ['cnn_dailymail', 'xsum']):
+        if not all(availability.get(f"raw_{dataset}", False) for dataset in ['frank', 'summeval']):
             if not self.download_raw_datasets(quick_setup):
                 success = False
         else:
             logger.info("✓ Raw datasets already available")
         
         # Preprocess datasets if needed
-        if not all(availability.get(f"processed_{dataset}", False) for dataset in ['cnn_dailymail', 'xsum']):
+        if not all(availability.get(f"processed_{dataset}", False) for dataset in ['frank', 'summeval']):
             if not self.preprocess_datasets(quick_setup):
                 success = False
         else:
