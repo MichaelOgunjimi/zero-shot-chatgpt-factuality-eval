@@ -66,7 +66,7 @@ def get_package_info():
             "summary_ranking",
             "consistency_rating",
         ],
-        "supported_datasets": ["cnn_dailymail", "xsum"],
+        "supported_datasets": ["frank", "summeval"],
         "prompt_types": ["zero_shot", "chain_of_thought"],
     }
 
@@ -81,7 +81,7 @@ def quick_setup():
     print("1. Set OPENAI_API_KEY environment variable")
     print("2. Load configuration: config = load_config()")
     print("3. Create task: task = create_task('entailment_inference')")
-    print("4. Load data: examples = quick_load_dataset('cnn_dailymail')")
+    print("4. Load data: examples = quick_load_dataset('frank')")
     print("5. Run evaluation: results = await task.process_examples(examples)")
     print()
     print("For detailed documentation, see docs/ folder")
