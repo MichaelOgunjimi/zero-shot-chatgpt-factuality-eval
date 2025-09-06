@@ -102,9 +102,12 @@ class MultiLLMEvaluationExperiment:
     """
     
     def __init__(self, config_path: str = None, experiment_name: str = None, 
-                 log_dir: str = None, output_dir: str = None):
+                 log_dir: str = None, output_dir: str = None, demo_mode: bool = False, 
+                 show_responses: bool = False):
         """Initialize the multi-LLM evaluation experiment."""
         self.config = load_config(config_path or "config/default.yaml")
+        self.demo_mode = demo_mode
+        self.show_responses = show_responses or demo_mode
         
         self.experiment_name = experiment_name or f"llm_evaluation_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
@@ -207,6 +210,130 @@ class MultiLLMEvaluationExperiment:
         )
         
         # Models info suppressed for clean output
+        
+        # Colors for demo mode
+        self.COLORS = {
+            'HEADER': '\033[95m',
+            'BLUE': '\033[94m',
+            'CYAN': '\033[96m',
+            'GREEN': '\033[92m',
+            'YELLOW': '\033[93m',
+            'RED': '\033[91m',
+            'BOLD': '\033[1m',
+            'UNDERLINE': '\033[4m',
+            'END': '\033[0m'
+        }
+    
+    def print_demo_header(self, text: str, char: str = "="):
+        """Print a formatted header for demo mode."""
+        if not self.demo_mode:
+            return
+        print(f"\n{self.COLORS['BOLD']}{self.COLORS['BLUE']}{char * 70}{self.COLORS['END']}")
+        print(f"{self.COLORS['BOLD']}{self.COLORS['BLUE']}{text.center(70)}{self.COLORS['END']}")
+        print(f"{self.COLORS['BOLD']}{self.COLORS['BLUE']}{char * 70}{self.COLORS['END']}\n")
+    
+    def print_demo_subheader(self, text: str):
+        """Print a formatted subheader for demo mode."""
+        if not self.demo_mode:
+            return
+        print(f"{self.COLORS['BOLD']}{self.COLORS['CYAN']}{text}{self.COLORS['END']}")
+        print(f"{self.COLORS['CYAN']}{'-' * len(text)}{self.COLORS['END']}")
+    
+    def print_example_info(self, example, task_name: str):
+        """Print formatted example information for demo."""
+        if not self.show_responses:
+            return
+            
+        print(f"\n{self.COLORS['BOLD']}📄 Document:{self.COLORS['END']}")
+        
+        # Try different possible attribute names for the document
+        document_text = ""
+        if hasattr(example, 'document') and example.document:
+            document_text = example.document
+        elif hasattr(example, 'article') and example.article:
+            document_text = example.article
+        elif hasattr(example, 'text') and example.text:
+            document_text = example.text
+        elif hasattr(example, 'source') and example.source:
+            document_text = example.source
+        elif hasattr(example, 'content') and example.content:
+            document_text = example.content
+        else:
+            # Debug: print available attributes
+            attrs = [attr for attr in dir(example) if not attr.startswith('_')]
+            print(f"{self.COLORS['RED']}Debug - Available attributes: {attrs}{self.COLORS['END']}")
+            document_text = "Document not found - check attributes above"
+        
+        if document_text:
+            doc_text = document_text[:300] + "..." if len(document_text) > 300 else document_text
+            print(f"{self.COLORS['YELLOW']}{doc_text}{self.COLORS['END']}")
+        
+        print(f"\n{self.COLORS['BOLD']}📝 Summary:{self.COLORS['END']}")
+        if hasattr(example, 'summary'):
+            print(f"{self.COLORS['YELLOW']}{example.summary}{self.COLORS['END']}")
+        
+        # Show ground truth if available
+        if hasattr(example, 'human_label') and example.human_label is not None:
+            label_text = ""
+            if task_name == 'entailment_inference':
+                label_text = "ENTAILMENT" if example.human_label == 1 else "CONTRADICTION"
+            elif task_name == 'consistency_rating':
+                label_text = f"{example.human_label}/100"
+            
+            if label_text:
+                print(f"\n{self.COLORS['BOLD']}🎯 Ground Truth:{self.COLORS['END']} {self.COLORS['GREEN']}{label_text}{self.COLORS['END']}")
+    
+    def print_model_response(self, prediction, task_name: str, model_name: str):
+        """Print formatted model response for demo."""
+        if not self.show_responses:
+            return
+            
+        print(f"\n{self.COLORS['BOLD']}🤖 {model_name} Response:{self.COLORS['END']}")
+        print(f"{self.COLORS['CYAN']}{'─' * 60}{self.COLORS['END']}")
+        
+        # Show raw response for reasoning
+        if hasattr(prediction, 'raw_response') and prediction.raw_response:
+            print(f"{self.COLORS['BOLD']}💭 Model Reasoning:{self.COLORS['END']}")
+            print(f"{prediction.raw_response}")
+            print(f"{self.COLORS['CYAN']}{'─' * 60}{self.COLORS['END']}")
+        
+        # Show final prediction
+        print(f"{self.COLORS['BOLD']}🎯 Final Prediction:{self.COLORS['END']}")
+        
+        if task_name == 'entailment_inference':
+            pred_text = "ENTAILMENT" if prediction.prediction == 1 else "CONTRADICTION"
+            color = self.COLORS['GREEN'] if prediction.prediction == 1 else self.COLORS['RED']
+            print(f"{color}{self.COLORS['BOLD']}{pred_text}{self.COLORS['END']}")
+            
+        elif task_name == 'summary_ranking':
+            if isinstance(prediction.prediction, list):
+                print(f"{self.COLORS['GREEN']}{self.COLORS['BOLD']}Ranking: {prediction.prediction}{self.COLORS['END']}")
+            else:
+                print(f"{self.COLORS['GREEN']}{self.COLORS['BOLD']}{prediction.prediction}{self.COLORS['END']}")
+                
+        elif task_name == 'consistency_rating':
+            score = prediction.prediction
+            if isinstance(score, (int, float)):
+                color = self.COLORS['GREEN'] if score >= 70 else self.COLORS['YELLOW'] if score >= 40 else self.COLORS['RED']
+                print(f"{color}{self.COLORS['BOLD']}{score}/100{self.COLORS['END']}")
+            else:
+                print(f"{self.COLORS['GREEN']}{self.COLORS['BOLD']}{score}{self.COLORS['END']}")
+        
+        # Show confidence if available
+        if hasattr(prediction, 'confidence') and prediction.confidence is not None:
+            conf_percent = prediction.confidence * 100 if prediction.confidence <= 1.0 else prediction.confidence
+            print(f"{self.COLORS['BOLD']}📊 Confidence:{self.COLORS['END']} {conf_percent:.1f}%")
+        
+        # Show timing and cost
+        if hasattr(prediction, 'processing_time') and prediction.processing_time:
+            print(f"{self.COLORS['BOLD']}⏱️  Processing Time:{self.COLORS['END']} {prediction.processing_time:.2f}s")
+        
+        if hasattr(prediction, 'cost') and prediction.cost:
+            print(f"{self.COLORS['BOLD']}💰 Cost:{self.COLORS['END']} ${prediction.cost:.4f}")
+        
+        # Add spacing between examples
+        if self.show_responses:
+            print(f"{self.COLORS['CYAN']}{'═' * 60}{self.COLORS['END']}")
     
     async def run_multi_llm_evaluations(
         self,
@@ -350,9 +477,28 @@ class MultiLLMEvaluationExperiment:
                             continue
                         
                         processed_examples = self._preprocess_examples_for_task(examples, task_name)
+                        
+                        # Demo mode: Show task header
+                        if self.demo_mode:
+                            task_display_name = task_name.replace('_', ' ').title()
+                            self.print_demo_header(f"🎯 {task_display_name} - {model_name}")
+                            print(f"{self.COLORS['BOLD']}Dataset:{self.COLORS['END']} {dataset_name}")
+                            print(f"{self.COLORS['BOLD']}Examples:{self.COLORS['END']} {len(processed_examples)}")
+                        
                         start_time = time.time()
                         predictions = await task.process_examples(processed_examples)
                         processing_time = time.time() - start_time
+                        
+                        # Demo mode: Show detailed responses for first few examples
+                        if self.show_responses and predictions:
+                            examples_to_show = min(3 if self.demo_mode else 1, len(predictions))
+                            for i in range(examples_to_show):
+                                if i < len(processed_examples) and i < len(predictions):
+                                    print(f"\n{self.COLORS['BOLD']}{self.COLORS['BLUE']}Example {i+1}/{examples_to_show}{self.COLORS['END']}")
+                                    print(f"{self.COLORS['BLUE']}{'═' * 60}{self.COLORS['END']}")
+                                    
+                                    self.print_example_info(processed_examples[i], task_name)
+                                    self.print_model_response(predictions[i], task_name, model_name)
                         
                         performance_metrics = task.evaluate_predictions(predictions)
                         
@@ -1953,6 +2099,10 @@ def main():
                        help="Run quick test with small sample size")
     parser.add_argument("--sota-follows", action="store_true",
                        help="Run in SOTA comparison mode - return results for SOTA analysis")
+    parser.add_argument("--demo", action="store_true",
+                       help="Run in demo mode with formatted model responses for video")
+    parser.add_argument("--show-responses", action="store_true",
+                       help="Show detailed model responses and reasoning")
     
     args = parser.parse_args()
     
@@ -1960,6 +2110,9 @@ def main():
     if args.quick_test:
         sample_size = args.sample_size if args.sample_size else 5  # Use --sample-size if provided, otherwise default to 5
         experiment_name = f"llm_evaluation_quick_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    elif args.demo:
+        sample_size = args.sample_size if args.sample_size else 3  # Small sample for demo
+        experiment_name = f"llm_evaluation_demo_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     else:
         sample_size = args.sample_size
         experiment_name = args.experiment_name
@@ -1973,7 +2126,9 @@ def main():
         experiment = MultiLLMEvaluationExperiment(
             config_path=args.config,
             experiment_name=experiment_name,
-            output_dir=args.output_dir
+            output_dir=args.output_dir,
+            demo_mode=args.demo,
+            show_responses=args.show_responses
         )
         
         # Run multi-LLM evaluations
