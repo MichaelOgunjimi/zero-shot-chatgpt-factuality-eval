@@ -117,10 +117,29 @@ class SOTAMultiLLMComparisonExperiment:
         }
     }
     
-    def __init__(self, model: str, tier: str, experiment_name: str = None, output_dir: str = None):
+    def __init__(self, model: str, tier: str, experiment_name: str = None, output_dir: str = None, 
+                 demo_mode: bool = False, show_responses: bool = False):
         """Initialize the Multi-LLM SOTA comparison experiment."""
         # Store tier for subprocess calls
         self.tier = tier
+        self.demo_mode = demo_mode
+        self.show_responses = show_responses or demo_mode
+        
+        # If in demo mode, suppress ALL logging from the start
+        if self.demo_mode:
+            # Suppress all logging levels for clean demo output
+            import logging
+            logging.getLogger().setLevel(logging.CRITICAL)
+            for logger_name in logging.Logger.manager.loggerDict:
+                logging.getLogger(logger_name).setLevel(logging.CRITICAL)
+            
+            # Suppress specific verbose loggers
+            verbose_loggers = [
+                'src.utils', 'src.prompts', 'src', 'src.baselines', 'src.utils.config',
+                'src.utils.visualization', 'experiment', 'INFO', 'WARNING'
+            ]
+            for logger_name in verbose_loggers:
+                logging.getLogger(logger_name).setLevel(logging.CRITICAL)
         
         # Load configuration
         self.config = get_config(model=model, tier=tier)
@@ -178,21 +197,145 @@ class SOTAMultiLLMComparisonExperiment:
         # Store models list (will be set by main)
         self.models = []
         
-        # Log initialization with metadata
-        self.logger.info(
-            "Multi-LLM SOTA comparison experiment initialized",
-            extra={
-                'experiment_name': self.experiment_name,
-                'task_name': 'initialization',
-                'metadata': {
-                    'config_model': self.config.get('model', {}).get('name', 'unknown'),
-                    'tier': tier,
-                    'output_dir': str(self.output_dir)
+        # Log initialization with metadata (only if not in demo mode)
+        if not self.demo_mode:
+            self.logger.info(
+                "Multi-LLM SOTA comparison experiment initialized",
+                extra={
+                    'experiment_name': self.experiment_name,
+                    'task_name': 'initialization',
+                    'metadata': {
+                        'config_model': self.config.get('model', {}).get('name', 'unknown'),
+                        'tier': tier,
+                        'output_dir': str(self.output_dir)
+                    }
                 }
-            }
-        )
+            )
+            print(f"🤖 Multi-LLM SOTA comparison experiment initialized: {self.experiment_name}")
         
-        print(f"🤖 Multi-LLM SOTA comparison experiment initialized: {self.experiment_name}")
+        # Colors for demo mode
+        self.DEMO_COLORS = {
+            'HEADER': '\033[95m',
+            'BLUE': '\033[94m',
+            'CYAN': '\033[96m',
+            'GREEN': '\033[92m',
+            'YELLOW': '\033[93m',
+            'RED': '\033[91m',
+            'BOLD': '\033[1m',
+            'UNDERLINE': '\033[4m',
+            'END': '\033[0m'
+        }
+    
+    def print_demo_header(self, text: str, char: str = "="):
+        """Print a formatted header for demo mode."""
+        if not self.demo_mode:
+            return
+        print(f"\n{self.DEMO_COLORS['BOLD']}{self.DEMO_COLORS['BLUE']}{char * 70}{self.DEMO_COLORS['END']}")
+        print(f"{self.DEMO_COLORS['BOLD']}{self.DEMO_COLORS['BLUE']}{text.center(70)}{self.DEMO_COLORS['END']}")
+        print(f"{self.DEMO_COLORS['BOLD']}{self.DEMO_COLORS['BLUE']}{char * 70}{self.DEMO_COLORS['END']}\n")
+    
+    def print_demo_subheader(self, text: str):
+        """Print a formatted subheader for demo mode."""
+        if not self.demo_mode:
+            return
+        print(f"{self.DEMO_COLORS['BOLD']}{self.DEMO_COLORS['CYAN']}{text}{self.DEMO_COLORS['END']}")
+        print(f"{self.DEMO_COLORS['CYAN']}{'-' * len(text)}{self.DEMO_COLORS['END']}")
+    
+    def print_example_info(self, example, task_name: str):
+        """Print formatted example information for demo."""
+        if not self.show_responses:
+            return
+            
+        print(f"\n{self.DEMO_COLORS['BOLD']}📄 Document:{self.DEMO_COLORS['END']}")
+        
+        # Try different possible attribute names for the document
+        document_text = ""
+        if hasattr(example, 'document') and example.document:
+            document_text = example.document
+        elif hasattr(example, 'article') and example.article:
+            document_text = example.article
+        elif hasattr(example, 'text') and example.text:
+            document_text = example.text
+        elif hasattr(example, 'source') and example.source:
+            document_text = example.source
+        elif hasattr(example, 'content') and example.content:
+            document_text = example.content
+        else:
+            # Debug: print available attributes
+            attrs = [attr for attr in dir(example) if not attr.startswith('_')]
+            print(f"{self.DEMO_COLORS['RED']}Debug - Available attributes: {attrs}{self.DEMO_COLORS['END']}")
+            document_text = "Document not found - check attributes above"
+        
+        if document_text:
+            doc_text = document_text[:300] + "..." if len(document_text) > 300 else document_text
+            print(f"{self.DEMO_COLORS['YELLOW']}{doc_text}{self.DEMO_COLORS['END']}")
+        
+        print(f"\n{self.DEMO_COLORS['BOLD']}📝 Summary:{self.DEMO_COLORS['END']}")
+        if hasattr(example, 'summary'):
+            print(f"{self.DEMO_COLORS['YELLOW']}{example.summary}{self.DEMO_COLORS['END']}")
+        
+        # Show ground truth if available
+        if hasattr(example, 'human_label') and example.human_label is not None:
+            label_text = ""
+            if task_name == 'entailment_inference':
+                label_text = "ENTAILMENT" if example.human_label == 1 else "CONTRADICTION"
+            elif task_name == 'consistency_rating':
+                label_text = f"{example.human_label}/100"
+            
+            if label_text:
+                print(f"\n{self.DEMO_COLORS['BOLD']}🎯 Ground Truth:{self.DEMO_COLORS['END']} {self.DEMO_COLORS['GREEN']}{label_text}{self.DEMO_COLORS['END']}")
+    
+    def print_model_response(self, prediction, task_name: str, model_name: str):
+        """Print formatted model response for demo."""
+        if not self.show_responses:
+            return
+            
+        print(f"\n{self.DEMO_COLORS['BOLD']}🤖 {model_name} Response:{self.DEMO_COLORS['END']}")
+        print(f"{self.DEMO_COLORS['CYAN']}{'─' * 60}{self.DEMO_COLORS['END']}")
+        
+        # Show raw response for reasoning
+        if hasattr(prediction, 'raw_response') and prediction.raw_response:
+            print(f"{self.DEMO_COLORS['BOLD']}💭 Model Reasoning:{self.DEMO_COLORS['END']}")
+            print(f"{prediction.raw_response}")
+            print(f"{self.DEMO_COLORS['CYAN']}{'─' * 60}{self.DEMO_COLORS['END']}")
+        
+        # Show final prediction
+        print(f"{self.DEMO_COLORS['BOLD']}🎯 Final Prediction:{self.DEMO_COLORS['END']}")
+        
+        if task_name == 'entailment_inference':
+            pred_text = "ENTAILMENT" if prediction.prediction == 1 else "CONTRADICTION"
+            color = self.DEMO_COLORS['GREEN'] if prediction.prediction == 1 else self.DEMO_COLORS['RED']
+            print(f"{color}{self.DEMO_COLORS['BOLD']}{pred_text}{self.DEMO_COLORS['END']}")
+            
+        elif task_name == 'summary_ranking':
+            if isinstance(prediction.prediction, list):
+                print(f"{self.DEMO_COLORS['GREEN']}{self.DEMO_COLORS['BOLD']}Ranking: {prediction.prediction}{self.DEMO_COLORS['END']}")
+            else:
+                print(f"{self.DEMO_COLORS['GREEN']}{self.DEMO_COLORS['BOLD']}{prediction.prediction}{self.DEMO_COLORS['END']}")
+                
+        elif task_name == 'consistency_rating':
+            score = prediction.prediction
+            if isinstance(score, (int, float)):
+                color = self.DEMO_COLORS['GREEN'] if score >= 70 else self.DEMO_COLORS['YELLOW'] if score >= 40 else self.DEMO_COLORS['RED']
+                print(f"{color}{self.DEMO_COLORS['BOLD']}{score}/100{self.DEMO_COLORS['END']}")
+            else:
+                print(f"{self.DEMO_COLORS['GREEN']}{self.DEMO_COLORS['BOLD']}{score}{self.DEMO_COLORS['END']}")
+        
+        # Show confidence if available
+        if hasattr(prediction, 'confidence') and prediction.confidence is not None:
+            conf_percent = prediction.confidence * 100 if prediction.confidence <= 1.0 else prediction.confidence
+            print(f"{self.DEMO_COLORS['BOLD']}📊 Confidence:{self.DEMO_COLORS['END']} {conf_percent:.1f}%")
+        
+        # Show timing and cost
+        if hasattr(prediction, 'processing_time') and prediction.processing_time:
+            print(f"{self.DEMO_COLORS['BOLD']}⏱️  Processing Time:{self.DEMO_COLORS['END']} {prediction.processing_time:.2f}s")
+        
+        if hasattr(prediction, 'cost') and prediction.cost:
+            print(f"{self.DEMO_COLORS['BOLD']}💰 Cost:{self.DEMO_COLORS['END']} ${prediction.cost:.4f}")
+        
+        # Add spacing between examples
+        if self.show_responses:
+            print(f"{self.DEMO_COLORS['CYAN']}{'═' * 60}{self.DEMO_COLORS['END']}")
     
     def get_color(self, category: str, item: str, default: str = '#888888') -> str:
         """Get color for specific item from color schemes."""
@@ -276,8 +419,9 @@ class SOTAMultiLLMComparisonExperiment:
         Returns:
             Complete comparison results with correlation analysis
         """
-        print(f"\n🔬 Starting Multi-LLM SOTA Comparison Experiment")
-        print("=" * 60)
+        if not self.demo_mode:
+            print(f"\n🔬 Starting Multi-LLM SOTA Comparison Experiment")
+            print("=" * 60)
         
         if tasks is None:
             tasks = ['entailment_inference', 'consistency_rating']
@@ -297,24 +441,26 @@ class SOTAMultiLLMComparisonExperiment:
         }
         
         try:
-            # Log experiment start with parameters
-            self.experiment_logger.log_task_start(
-                'sota_comparison_experiment',
-                metadata={
-                    'tasks': tasks,
-                    'datasets': datasets,
-                    'baselines': baselines,
-                    'sample_size': sample_size,
-                    'prompt_type': prompt_type,
-                    'models': self.models
-                }
-            )
+            # Log experiment start with parameters (only if not in demo mode)
+            if not self.demo_mode:
+                self.experiment_logger.log_task_start(
+                    'sota_comparison_experiment',
+                    metadata={
+                        'tasks': tasks,
+                        'datasets': datasets,
+                        'baselines': baselines,
+                        'sample_size': sample_size,
+                        'prompt_type': prompt_type,
+                        'models': self.models
+                    }
+                )
             
             # Phase 1: Run Multi-LLM evaluations
             await self._run_llm_evaluations(tasks, datasets, sample_size, prompt_type)
             
-            # Phase 2: Run baseline evaluations
-            await self._run_baseline_evaluations(tasks, datasets, baselines, sample_size)
+            # Phase 2: Run baseline evaluations (skip in demo mode)
+            if not self.demo_mode:
+                await self._run_baseline_evaluations(tasks, datasets, baselines, sample_size)
             
             # Phase 3: Compute correlations
             await self._compute_correlation_analysis()
@@ -366,7 +512,7 @@ class SOTAMultiLLMComparisonExperiment:
         sample_size: int,
         prompt_type: str
     ):
-        """Run Multi-LLM evaluations via subprocess call."""
+        """Run Multi-LLM evaluations via subprocess call or direct call for demo mode."""
         print(f"\n🤖 Running Multi-LLM Evaluations")
         print("-" * 40)
         
@@ -382,6 +528,99 @@ class SOTAMultiLLMComparisonExperiment:
             }
         )
         
+        # If in demo mode, run directly to preserve formatting
+        if self.demo_mode or self.show_responses:
+            await self._run_llm_evaluations_direct(tasks, datasets, sample_size, prompt_type)
+        else:
+            await self._run_llm_evaluations_subprocess(tasks, datasets, sample_size, prompt_type)
+        
+        print(f"✅ Multi-LLM evaluation completed.")
+    
+    async def _run_llm_evaluations_direct(
+        self,
+        tasks: List[str],
+        datasets: List[str],
+        sample_size: int,
+        prompt_type: str
+    ):
+        """Run LLM evaluations directly for demo mode to preserve formatting."""
+        # Import the MultiLLMEvaluationExperiment class
+        from experiments2.run_llm_evaluation import MultiLLMEvaluationExperiment
+        import logging
+        
+        # Temporarily suppress all logging except errors for clean demo output
+        original_levels = {}
+        loggers_to_suppress = [
+            'experiment', 'INFO', 'WARNING', 'root',
+            f'experiment.sota_llm_demo_{datetime.now().strftime("%Y%m%d_%H%M%S")}',
+            'experiment.sota_llm_demo', 'visualization_generation',
+            'model_evaluation', 'multi_llm_evaluation'
+        ]
+        
+        # Get all existing loggers and suppress them
+        for logger_name in logging.Logger.manager.loggerDict:
+            if any(suppress in logger_name for suppress in loggers_to_suppress):
+                logger = logging.getLogger(logger_name)
+                original_levels[logger_name] = logger.level
+                logger.setLevel(logging.CRITICAL)
+        
+        # Also suppress root logger
+        root_logger = logging.getLogger()
+        original_root_level = root_logger.level
+        root_logger.setLevel(logging.CRITICAL)
+        
+        try:
+            # Create LLM experiment instance with demo settings
+            llm_experiment = MultiLLMEvaluationExperiment(
+                experiment_name=f"sota_llm_demo_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                output_dir=str(self.base_output_dir / "llm_multi_evaluation"),
+                demo_mode=self.demo_mode,
+                show_responses=self.show_responses
+            )
+            
+            # Suppress the experiment's logger too
+            if hasattr(llm_experiment, 'logger'):
+                llm_experiment.logger.setLevel(logging.CRITICAL)
+            if hasattr(llm_experiment, 'experiment_logger'):
+                llm_experiment.experiment_logger.logger.setLevel(logging.CRITICAL)
+            
+            # Run the evaluation directly
+            await llm_experiment.run_multi_llm_evaluations(
+                tasks=tasks,
+                datasets=datasets,
+                models=self.models,
+                sample_size=sample_size,
+                prompt_type=prompt_type
+            )
+            
+            # Extract results for SOTA analysis
+            self.results['llm_results'] = llm_experiment.results.get('model_results', {})
+            
+            # Calculate total cost
+            total_cost = llm_experiment.results.get('cost_analysis', {}).get('total_cost', 0.0)
+            self.results['cost_analysis']['llm_cost'] = total_cost
+            
+            # Save LLM results separately
+            llm_results_file = self.output_dir / "llm_results" / "llm_evaluation_results.json"
+            llm_results_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(llm_results_file, 'w') as f:
+                json.dump(llm_experiment.results, f, indent=2, default=self._make_json_serializable)
+                
+        finally:
+            # Restore original logging levels
+            for logger_name, level in original_levels.items():
+                logging.getLogger(logger_name).setLevel(level)
+            root_logger.setLevel(original_root_level)
+    
+    async def _run_llm_evaluations_subprocess(
+        self,
+        tasks: List[str],
+        datasets: List[str],
+        sample_size: int,
+        prompt_type: str
+    ):
+        """Run LLM evaluations via subprocess (original method)."""
         import subprocess
         import sys
         
@@ -393,6 +632,12 @@ class SOTAMultiLLMComparisonExperiment:
             "--sota-follows",
             "--output-dir", str(self.base_output_dir / "llm_multi_evaluation")
         ]
+        
+        # Add demo mode parameters
+        if self.demo_mode:
+            cmd_args.append("--demo")
+        if self.show_responses:
+            cmd_args.append("--show-responses")
         
         print(f"Models: {self.models}")
 
@@ -3339,6 +3584,31 @@ class SOTAMultiLLMComparisonExperiment:
 
 def main():
     """Main entry point for Multi-LLM SOTA comparison experiment."""
+    import sys
+    
+    # Check for demo mode FIRST before any imports that might log
+    demo_mode = '--demo' in sys.argv
+    
+    if demo_mode:
+        import logging
+        import warnings
+        warnings.filterwarnings('ignore')
+        
+        # Suppress ALL logging immediately
+        logging.getLogger().setLevel(logging.CRITICAL)
+        
+        # Suppress all existing loggers
+        for logger_name in list(logging.Logger.manager.loggerDict.keys()):
+            logging.getLogger(logger_name).setLevel(logging.CRITICAL)
+        
+        # Also suppress any new loggers that get created
+        class DemoFilter(logging.Filter):
+            def filter(self, record):
+                return False
+        
+        demo_filter = DemoFilter()
+        logging.getLogger().addFilter(demo_filter)
+    
     parser = argparse.ArgumentParser(
         description="Compare Multiple LLMs with SOTA baseline methods for factuality evaluation"
     )
@@ -3400,8 +3670,35 @@ def main():
         action="store_true",
         help="Run comprehensive experiment with 800 samples per dataset"
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run in demo mode with formatted model responses for video"
+    )
+    parser.add_argument(
+        "--show-responses",
+        action="store_true",
+        help="Show detailed model responses and reasoning"
+    )
     
     args = parser.parse_args()
+    
+    # Additional demo mode configuration now that we have parsed args
+    if args.demo:
+        import logging
+        import warnings
+        import os
+        
+        # Completely silence everything
+        warnings.filterwarnings('ignore')
+        os.environ['PYTHONWARNINGS'] = 'ignore'
+        
+        # Set all loggers to CRITICAL
+        logging.getLogger().setLevel(logging.CRITICAL)
+        
+        # Suppress all existing loggers
+        for logger_name in list(logging.Logger.manager.loggerDict.keys()):
+            logging.getLogger(logger_name).setLevel(logging.CRITICAL)
     
     tasks = [args.task] if args.task else None
     datasets = [args.dataset] if args.dataset else None
@@ -3411,16 +3708,24 @@ def main():
     if args.comprehensive:
         if sample_size is None:
             sample_size = 800
-        print(f"🚀 Running comprehensive experiment with {sample_size} examples per dataset")
+        if not args.demo:
+            print(f"🚀 Running comprehensive experiment with {sample_size} examples per dataset")
     elif args.quick_test:
         if sample_size is None:
             sample_size = 50
-        print(f"⚡ Running quick test with {sample_size} examples per dataset")
+        if not args.demo:
+            print(f"⚡ Running quick test with {sample_size} examples per dataset")
+    elif args.demo:
+        if sample_size is None:
+            sample_size = 3  # Small sample for demo
+        # Don't print the demo message here - let it be clean
   
     experiment = SOTAMultiLLMComparisonExperiment(
         model=args.models[0],
         tier=args.tier,
-        experiment_name=args.experiment_name
+        experiment_name=args.experiment_name,
+        demo_mode=args.demo,
+        show_responses=args.show_responses
     )
     
     experiment.models = args.models
