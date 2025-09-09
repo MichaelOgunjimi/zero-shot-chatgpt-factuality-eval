@@ -14,6 +14,14 @@ This project implements a comprehensive evaluation framework to systematically a
 - **📊 SOTA Baselines**: FactCC, BERTScore, ROUGE comparisons
 - **📈 Advanced Analytics**: Statistical testing, confidence intervals, failure analysis
 - **🎨 Rich Visualizations**: Performance charts, heatmaps, radar plots
+- **🎭 Enhanced Demo Mode**: ANSI colors, detailed responses, thesis presentations
+
+### 🆕 Recent Enhancements
+
+- **Demo Mode**: Added comprehensive demo visualization with colorized output for thesis presentations
+- **Response Analysis**: Detailed model reasoning display with confidence scores and processing metrics
+- **Flexible Evaluation**: Direct and subprocess modes for different use cases
+- **Improved Documentation**: Enhanced README formatting and comprehensive usage examples
 
 ## 🏗️ Architecture
 
@@ -107,6 +115,9 @@ python experiments2/run_llm_evaluation.py \
 - ✅ Statistical significance testing
 - ✅ Comparative performance analysis
 - ✅ Academic-quality result tables
+- ✅ Enhanced demo mode with ANSI colors and formatted output
+- ✅ Detailed model response visualization with confidence scores
+- ✅ Direct evaluation mode for thesis presentations and debugging
 
 **Usage**:
 
@@ -114,7 +125,8 @@ python experiments2/run_llm_evaluation.py \
 python experiments2/sota_multi_comparison.py \
   --models gpt-4.1-mini \
   --sample-size 500 \
-  --include-baselines factcc bertscore rouge
+  --include-baselines factcc bertscore rouge \
+  --demo --show-responses
 ```
 
 ### 3. Zero-Shot vs Chain-of-Thought Analysis (`compare_zero_shot_vs_cot_visualizations.py`)
