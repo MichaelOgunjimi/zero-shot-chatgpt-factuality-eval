@@ -79,6 +79,7 @@ await experiment.run_multi_llm_evaluations(
 **Purpose**: Comprehensive evaluation across all models and tasks
 
 **Features**:
+
 - ✅ Multi-model comparison with statistical analysis
 - ✅ Enhanced demo mode with ANSI colors and detailed output
 - ✅ Comprehensive visualizations (bar charts, radar charts, heatmaps)
@@ -86,6 +87,7 @@ await experiment.run_multi_llm_evaluations(
 - ✅ Failure mode analysis and error categorization
 
 **Usage**:
+
 ```bash
 python experiments2/run_llm_evaluation.py \
   --models gpt-4.1-mini qwen2.5:7b llama3.1:8b \
@@ -100,12 +102,14 @@ python experiments2/run_llm_evaluation.py \
 **Purpose**: Compare LLMs against state-of-the-art factuality metrics
 
 **Features**:
+
 - ✅ FactCC, BERTScore, and ROUGE baseline implementations
 - ✅ Statistical significance testing
 - ✅ Comparative performance analysis
 - ✅ Academic-quality result tables
 
 **Usage**:
+
 ```bash
 python experiments2/sota_multi_comparison.py \
   --models gpt-4.1-mini \
@@ -118,12 +122,14 @@ python experiments2/sota_multi_comparison.py \
 **Purpose**: Comprehensive analysis of prompting strategies
 
 **Features**:
+
 - ✅ Statistical testing of prompting strategy effectiveness
 - ✅ Performance degradation analysis
 - ✅ Task-specific strategy recommendations
 - ✅ Publication-ready visualizations
 
 **Usage**:
+
 ```bash
 python experiments2/compare_zero_shot_vs_cot_visualizations.py \
   --models gpt-4.1-mini qwen2.5:7b \
@@ -158,11 +164,13 @@ summeval_data = SummEvalLoader().load_dataset(max_examples=1000)
 ## 🤖 Supported Models
 
 ### OpenAI Models
+
 - **GPT-4.1-mini** (Tier 2): High-performance, cost-effective
   - Cost tracking: $0.00015 per 1K input tokens
   - Optimized for factuality evaluation tasks
 
 ### Ollama Models (Local Deployment)
+
 - **Qwen2.5:7b**: Alibaba's latest 7B parameter model
 - **Llama3.1:8b**: Meta's Llama 3.1 8B parameter model
 
@@ -194,11 +202,13 @@ result = await task.evaluate_example(example, model_client)
 ```
 
 **Evaluation Metrics**:
+
 - Accuracy, Precision, Recall, F1-Score
 - Confusion matrix analysis
 - Per-class performance breakdown
 
 **Prompt Example**:
+
 ```plaintext
 Determine if the summary is factually consistent with the source text.
 
@@ -224,6 +234,7 @@ result = await task.evaluate_example(example, model_client)
 ```
 
 **Evaluation Metrics**:
+
 - Kendall's Tau correlation
 - Spearman rank correlation
 - Normalized Discounted Cumulative Gain (NDCG)
@@ -241,6 +252,7 @@ result = await task.evaluate_example(example, model_client)
 ```
 
 **Evaluation Metrics**:
+
 - Pearson correlation with human judgments
 - Mean Absolute Error (MAE)
 - Root Mean Square Error (RMSE)
@@ -286,6 +298,7 @@ rouge_scores = metrics.evaluate_rouge(source, summary)
 ### Demo Mode Output
 
 The framework includes an enhanced demo mode with:
+
 - 🎨 **ANSI Colors**: Colored terminal output for better readability
 - 📊 **Formatted Tables**: Clean performance summaries
 - 🔍 **Detailed Responses**: Raw model outputs for analysis
@@ -322,7 +335,7 @@ evaluation:
 
 ## 📁 Project Structure
 
-```
+```text
 factuality-evaluation/
 ├── 📁 config/                    # Configuration management
 │   ├── default.yaml             # Main project configuration
@@ -437,7 +450,7 @@ examples = loader.load_dataset(max_examples=1000)
 
 ### Output Structure
 
-```
+```text
 results/experiments/[experiment_name]/
 ├── multi_llm_evaluation/
 │   ├── results.json              # Complete experimental results
